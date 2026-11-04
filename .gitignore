@@ -1,0 +1,5 @@
+data/
+reports/predictions*.json
+node_modules/
+.env
+*.log

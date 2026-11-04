@@ -1,0 +1,25 @@
+{
+  "start": "2016-01-01",
+  "asOf": "2026-10-30",
+  "seed": 20261102,
+  "stocks": [
+    { "symbol": "sh600519", "name": "贵州茅台", "sector": "白酒" },
+    { "symbol": "sz000001", "name": "平安银行", "sector": "银行" },
+    { "symbol": "sz000333", "name": "美的集团", "sector": "家电" },
+    { "symbol": "sh600036", "name": "招商银行", "sector": "银行" },
+    { "symbol": "sh600900", "name": "长江电力", "sector": "电力" },
+    { "symbol": "sz000651", "name": "格力电器", "sector": "家电" },
+    { "symbol": "sh601318", "name": "中国平安", "sector": "保险" },
+    { "symbol": "sz002415", "name": "海康威视", "sector": "电子" }
+  ],
+  "benchmark": "sh000300",
+  "historicalExitProbe": "sh600001",
+  "horizons": [5, 20],
+  "testYears": [2024, 2025, 2026],
+  "threshold": 0,
+  "ridge": 0.01,
+  "iterations": 350,
+  "learningRate": 0.12,
+  "bootstrapReplicates": 300,
+  "maxAnnouncementPages": 80
+}
