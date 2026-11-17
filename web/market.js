@@ -1,12 +1,13 @@
 import { setIndicatorHistory, drawIndicators, describeIndicators } from './indicators.js';
 import { chartPeriodRows } from './chart-periods.js';
+import { normalizeViewport, zoomViewport } from './chart-viewport.js';
 import { eventTrackHeight, layoutEventMarkers, loadEventMarkers, paintEventRange } from './events.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('candles');
 const ctx = canvas.getContext('2d');
 const emptyAnalysis = document.querySelector('.empty-analysis');
-const ui = { rows: [], visible: [], selected: '', period:'day', range:0, windowEnd:0, reviewPinned:false, hover:-1, gap:0, left:0, averages:new Map(), chart:null, request:0, evidenceRequest:0 };
+const ui = { rows: [], visible: [], selected: '', period:'day', view:{start:0,count:0}, reviewPinned:false, hover:-1, gap:0, left:0, averages:new Map(), chart:null, request:0, evidenceRequest:0 };
 const red = '#c33551', green = '#098260', muted = '#54657b', line = '#e6ebf2';
 const movingAverages = [[5,'#b78336'],[10,'#7861cf'],[20,'#2d8ac0']];
 const pct = value => value === null || value === undefined ? '—' : (value > 0 ? '+' : '') + value.toFixed(2) + '%';
@@ -63,9 +64,13 @@ function draw() {
   const bounds = canvas.getBoundingClientRect();
   const width = bounds.width, height = bounds.height, ratio = devicePixelRatio || 1;
   if (!width || !height) return;
-  canvas.width = Math.round(width*ratio);
-  canvas.height = Math.round(height*ratio);
+  const pixelWidth=Math.round(width*ratio), pixelHeight=Math.round(height*ratio);
+  if(canvas.width!==pixelWidth||canvas.height!==pixelHeight){
+    canvas.width=pixelWidth;
+    canvas.height=pixelHeight;
+  }
   ctx.setTransform(ratio,0,0,ratio,0,0);
+  ctx.clearRect(0,0,width,height);
   const rows = ui.visible;
   if (!rows.length) return;
   const left=12, right=57, top=17+eventTrackHeight(rows), bottom=height-31;
@@ -101,7 +106,7 @@ function draw() {
     const open=column[0].open, close=column.at(-1).close;
     const upper=Math.max(...column.map(row=>row.high)), lower=Math.min(...column.map(row=>row.low));
     const columnWidth=column.length*gap;
-    const x=left+index*gap+columnWidth/2, bar=Math.max(1,Math.min(12,columnWidth*.68));
+    const x=left+index*gap+columnWidth/2, bar=Math.max(1,Math.min(24,columnWidth*.68));
     ctx.strokeStyle=ctx.fillStyle=close>=open?red:green;
     ctx.beginPath();ctx.moveTo(x,y(upper));ctx.lineTo(x,y(lower));ctx.stroke();
     ctx.fillRect(x-bar/2,Math.min(y(open),y(close)),bar,Math.max(1.2,Math.abs(y(open)-y(close))));
@@ -147,25 +152,71 @@ function updatePeriodHistory() {
   setIndicatorHistory(ui.rows);
 }
 
-function setRange(end=ui.rows.length) {
-  if(!ui.rows.length)return;
-  const count=ui.range||ui.rows.length;
-  ui.windowEnd=Math.min(ui.rows.length,Math.max(count,end));
+function defaultViewCount() {
+  return Math.min(80,Math.max(18,Math.floor(((canvas.clientWidth||420)-69)/10)));
+}
+
+function setViewport(next, preview=false) {
+  const total=ui.rows.length;
+  if(!total)return;
+  const {start,count}=normalizeViewport(total,next.count,next.start);
+  ui.view={start,count};
   ui.hover=-1;
-  ui.visible=ui.rows.slice(Math.max(0,ui.windowEnd-count),ui.windowEnd);
-  if(!ui.visible.some(row=>row.date===ui.selected))ui.selected=ui.visible.at(-1).date;
+  ui.visible=ui.rows.slice(start,start+count);
   const first=ui.visible[0], last=ui.visible.at(-1);
-  $('history-window').hidden=!ui.range;
+  const atLatest=start+count>=total;
+  $('history-window').hidden=false;
   $('history-range').textContent=(first.startDate??first.date)+' 至 '+last.date;
-  $('history-older').disabled=ui.windowEnd<=count;
-  $('history-newer').disabled=ui.windowEnd>=ui.rows.length;
-  $('history-latest').disabled=ui.windowEnd>=ui.rows.length;
+  $('history-older').disabled=start===0;
+  $('history-newer').disabled=atLatest;
+  $('history-latest').disabled=atLatest;
+  $('zoom-in').disabled=count<=Math.min(8,total);
+  $('zoom-out').disabled=count>=total;
   for(const button of document.querySelectorAll('[data-range]')){
-    button.setAttribute('aria-pressed',String(Number(button.dataset.range)===ui.range));
-    if(button.dataset.range!=='0')button.textContent=button.dataset.range+(ui.period==='day'?' 日':' 根');
+    const preset=Number(button.dataset.range);
+    button.setAttribute('aria-pressed',String(preset===0?count===total:count===preset&&count<total));
+    if(preset)button.textContent=preset+(ui.period==='day'?' 日':' 根');
   }
-  updateCandleSelection();
+  const selected=ui.visible.find(row=>row.date===ui.selected);
+  if(preview){
+    candleSummary(selected??last);
+    draw();
+  }else{
+    if(!selected){
+      ui.selected=last.date;
+      ui.evidenceRequest++;
+    }
+    updateCandleSelection();
+  }
   drawIndicators(ui.visible);
+}
+
+function showLatest(count=ui.view.count) {
+  if(!ui.rows.length)return;
+  ui.selected=ui.rows.at(-1).date;
+  setViewport({count,start:ui.rows.length-count});
+}
+
+function showAroundSelection(count, edge=0.5) {
+  const index=ui.rows.findIndex(row=>row.date===ui.selected);
+  setViewport({count,start:index<0?ui.rows.length-count:index-Math.floor(edge*count)});
+}
+
+function selectionAnchor() {
+  const index=ui.visible.findIndex(row=>row.date===ui.selected);
+  return index<0?0.5:(index+.5)/ui.view.count;
+}
+
+function zoomBy(factor, anchor=selectionAnchor()) {
+  if(!ui.view.count)return;
+  const current=ui.view.count;
+  const target=factor<1?Math.min(current-1,Math.round(current*factor)):Math.max(current+1,Math.round(current*factor));
+  setViewport(zoomViewport(ui.rows.length,ui.view,target,anchor));
+}
+
+function shiftWindow(amount) {
+  const {start,count}=ui.view;
+  setViewport({count,start:start+amount});
 }
 
 function updateCandleSelection() {
@@ -184,24 +235,6 @@ function selectCandle(row) {
   ui.selected=row.date;
   ui.reviewPinned=true;
   updateCandleSelection();
-}
-
-function setRangeAroundSelection() {
-  const index=ui.rows.findIndex(row=>row.date===ui.selected);
-  const end=index<0?ui.rows.length:index+1+Math.floor(ui.range/2);
-  setRange(end);
-}
-
-function shiftWindow(amount) {
-  if(!ui.rows.length)return;
-  const end=ui.windowEnd;
-  if(!ui.range){
-    if(amount>=0)return;
-    const preferred={day:120,week:60,month:30}[ui.period];
-    ui.range=ui.rows.length>preferred?preferred:30;
-    amount=-Math.round(ui.range/2);
-  }
-  setRange(end+amount);
 }
 
 function link(label,url) {
@@ -461,7 +494,6 @@ async function loadStock(symbol, openMarket = true) {
     void loadEventMarkers(symbol,chart.analysisEnabled);
     document.dispatchEvent(new CustomEvent('finance:stock',{detail:chart}));
     if (openMarket) document.dispatchEvent(new Event('finance:show-market'));
-    ui.range=0;
     ui.reviewPinned=false;
     updatePeriodHistory();
     updateWatch(chart);
@@ -484,7 +516,7 @@ async function loadStock(symbol, openMarket = true) {
       : '可用日线 '+chart.rows[0].date+' 至 '+last.date+(coverage?.listingDate?' · 上市 '+coverage.listingDate:' · 上市首日待核实');
     $('chart-status').title='最新日线可能仍在盘中';
     $('results-list').replaceChildren();
-    setRange();
+    showLatest(defaultViewCount());
   } catch(error) {
     if(request===ui.request) $('chart-status').textContent=error.message;
   }
@@ -516,43 +548,136 @@ $('stock-form').addEventListener('submit',async event=>{
   } catch(error){if(request===searchRequest) $('search-status').textContent=error.message;}
 });
 
-let gesture, clickBlockedUntil=0;
-function barIndex(event) {
-  return Math.floor((event.clientX-canvas.getBoundingClientRect().left-ui.left)/ui.gap);
+const pointers = new Map();
+let gesture = null;
+let pendingViewport = null;
+let frame = 0;
+let suppressClick = false;
+
+function plotFraction(clientX) {
+  const x=clientX-canvas.getBoundingClientRect().left-ui.left;
+  return Math.max(0,Math.min(1,x/(ui.gap*ui.view.count)));
 }
+
+function barIndex(event) {
+  const x=event.clientX-canvas.getBoundingClientRect().left-ui.left;
+  return Math.floor(x/ui.gap);
+}
+
+function requestViewport(next) {
+  pendingViewport=next;
+  if(frame)return;
+  frame=requestAnimationFrame(()=>{
+    frame=0;
+    const viewport=pendingViewport;
+    pendingViewport=null;
+    if(viewport.start!==ui.view.start||viewport.count!==ui.view.count)setViewport(viewport,true);
+  });
+}
+
+function commitViewport() {
+  if(frame)cancelAnimationFrame(frame);
+  frame=0;
+  const next=pendingViewport??ui.view;
+  pendingViewport=null;
+  setViewport(next);
+}
+
+function touchSpan() {
+  const [first,second]=pointers.values();
+  return {
+    span:Math.max(1,Math.hypot(second.x-first.x,second.y-first.y)),
+    center:(first.x+second.x)/2
+  };
+}
+
 canvas.addEventListener('pointerdown',event=>{
-  if(!event.isPrimary||event.button!==0)return;
-  gesture={id:event.pointerId,x:event.clientX,y:event.clientY};
+  if(event.button!==0||!ui.view.count||pointers.size>=2)return;
+  if(pointers.size&&event.pointerType!=='touch')return;
+  const point={x:event.clientX,y:event.clientY};
+  pointers.set(event.pointerId,point);
   canvas.setPointerCapture(event.pointerId);
+  if(pointers.size===1){
+    suppressClick=false;
+    gesture={kind:'tap',point,viewport:ui.view,step:ui.gap};
+  }else{
+    if(gesture.kind==='pan')commitViewport();
+    const {span,center}=touchSpan();
+    gesture={kind:'pinch',span,anchor:plotFraction(center),viewport:ui.view};
+    suppressClick=true;
+  }
 });
-canvas.addEventListener('pointercancel',()=>{gesture=null;});
-canvas.addEventListener('pointerup',event=>{
-  if(gesture?.id!==event.pointerId)return;
-  const dx=event.clientX-gesture.x, dy=event.clientY-gesture.y;
-  gesture=null;
-  if(Math.abs(dx)<18||Math.abs(dx)<=Math.abs(dy)*1.25)return;
-  clickBlockedUntil=performance.now()+350;
-  const amount=Math.max(1,Math.round(Math.abs(dx)/Math.max(1,canvas.clientWidth)*ui.visible.length));
-  shiftWindow(Math.sign(dx)*amount);
-});
+
+function trackPointer(event) {
+  if(!pointers.has(event.pointerId))return false;
+  pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+  if(gesture.kind==='pinch'){
+    const {span,center}=touchSpan();
+    const view=zoomViewport(ui.rows.length,gesture.viewport,
+      gesture.viewport.count*gesture.span/span,gesture.anchor);
+    const start=view.start+(gesture.anchor-plotFraction(center))*view.count;
+    requestViewport(normalizeViewport(ui.rows.length,view.count,start));
+  }else if(gesture.kind!=='done'){
+    const dx=event.clientX-gesture.point.x, dy=event.clientY-gesture.point.y;
+    if(gesture.kind==='tap'&&Math.abs(dx)>=7&&Math.abs(dx)>Math.abs(dy)*1.25){
+      gesture.kind='pan';
+      suppressClick=true;
+      canvas.setAttribute('data-panning','');
+    }
+    if(gesture.kind==='pan'){
+      const {start,count}=gesture.viewport;
+      requestViewport(normalizeViewport(ui.rows.length,count,start+dx/gesture.step));
+    }
+  }
+  return true;
+}
+
+function endPointer(event) {
+  if(!pointers.has(event.pointerId))return;
+  if(event.type==='pointerup' && gesture.kind!=='pinch')trackPointer(event);
+  pointers.delete(event.pointerId);
+  if(gesture.kind==='pan'||gesture.kind==='pinch')commitViewport();
+  canvas.removeAttribute('data-panning');
+  gesture=pointers.size?{kind:'done'}:null;
+}
+canvas.addEventListener('pointerup',endPointer);
+canvas.addEventListener('pointercancel',endPointer);
+canvas.addEventListener('lostpointercapture',endPointer);
+
 canvas.addEventListener('click',event=>{
-  if(performance.now()<clickBlockedUntil)return;
+  if(suppressClick)return;
   selectCandle(ui.visible[barIndex(event)]);
 });
-canvas.addEventListener('keydown',event=>{
-  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||!ui.visible.length)return;
+canvas.addEventListener('wheel',event=>{
+  if(!ui.view.count||!(event.ctrlKey||event.metaKey)||!event.deltaY)return;
   event.preventDefault();
+  zoomBy(event.deltaY<0?0.86:1.16,plotFraction(event.clientX));
+},{passive:false});
+canvas.addEventListener('keydown',event=>{
+  if(!ui.visible.length)return;
+  if(['+','=','-'].includes(event.key)){
+    event.preventDefault();
+    zoomBy(event.key==='-'?1.4:0.72);
+    return;
+  }
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  if(event.shiftKey&&event.key.startsWith('Arrow')){
+    shiftWindow(Math.max(1,Math.round(ui.view.count/4))*(event.key==='ArrowLeft'?-1:1));
+    return;
+  }
   const index=ui.visible.findIndex(row=>row.date===ui.selected);
   const target={ArrowLeft:index-1,ArrowRight:index+1,Home:0,End:ui.visible.length-1}[event.key];
   selectCandle(ui.visible[Math.min(ui.visible.length-1,Math.max(0,target))]);
 });
 canvas.addEventListener('pointermove',event=>{
-  if(gesture||event.pointerType==='touch')return;
+  if(trackPointer(event)||event.pointerType==='touch')return;
   const index=barIndex(event);
   const row=ui.visible[index];
   if(row&&ui.hover!==index){ui.hover=index;candleSummary(row);draw();}
 });
 canvas.addEventListener('pointerleave',()=>{
+  if(gesture)return;
   ui.hover=-1;
   candleSummary(ui.visible.find(row=>row.date===ui.selected));
   draw();
@@ -560,23 +685,23 @@ canvas.addEventListener('pointerleave',()=>{
 for(const button of document.querySelectorAll('[data-period]')){
   button.addEventListener('click',()=>{
     if(ui.period===button.dataset.period)return;
-    const oldDate=ui.selected;
+    const oldDate=ui.selected, count=ui.view.count;
+    const all=count===ui.rows.length, edge=selectionAnchor();
     ui.period=button.dataset.period;
     if(!ui.chart)return;
     updatePeriodHistory();
     ui.selected=ui.rows.find(row=>row.date>=oldDate)?.date??ui.rows.at(-1).date;
-    setRangeAroundSelection();
+    showAroundSelection(all?ui.rows.length:count,edge);
   });
 }
 for(const button of document.querySelectorAll('[data-range]')){
-  button.addEventListener('click',()=>{
-    ui.range=Number(button.dataset.range);
-    setRangeAroundSelection();
-  });
+  button.addEventListener('click',()=>showAroundSelection(Number(button.dataset.range)||ui.rows.length));
 }
-$('history-older').addEventListener('click',()=>shiftWindow(-ui.range));
-$('history-newer').addEventListener('click',()=>shiftWindow(ui.range));
-$('history-latest').addEventListener('click',()=>{ui.selected=ui.rows.at(-1).date;setRange();});
+$('history-older').addEventListener('click',()=>shiftWindow(-ui.view.count));
+$('history-newer').addEventListener('click',()=>shiftWindow(ui.view.count));
+$('history-latest').addEventListener('click',()=>showLatest());
+$('zoom-in').addEventListener('click',()=>zoomBy(0.72));
+$('zoom-out').addEventListener('click',()=>zoomBy(1.4));
 $('explain').addEventListener('click',()=>void analyze(ui.selected));
 new ResizeObserver(()=>{draw();drawIndicators(ui.visible);}).observe(canvas);
 document.addEventListener('finance:update-annotations',draw);

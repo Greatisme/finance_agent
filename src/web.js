@@ -10,6 +10,8 @@ import { analysisSchema, makeAnalysisPrompt, assembleAnalysis, analysisText } fr
 
 import { researchContext, stockDossier, listedDays, publicTrades } from './research-context.js';
 import { reviewedEvents, followThrough, closedThrough } from './market-events.js';
+import { buildForecast } from './forecast.js';
+import { forecastDrivers, institutionalHistory, marketContext } from './forecast-evidence.js';
 
 const port = Number(process.env.FINANCE_PORT ?? 4317);
 const host = '127.0.0.1';
@@ -22,6 +24,7 @@ const assets = new Map([
   ['/research-context.js', ['research-context.js', 'text/javascript; charset=utf-8']],
   ['/indicators.js', ['indicators.js', 'text/javascript; charset=utf-8']],
   ['/chart-periods.js', ['chart-periods.js', 'text/javascript; charset=utf-8']],
+  ['/chart-viewport.js', ['chart-viewport.js', 'text/javascript; charset=utf-8']],
   ['/events.js', ['events.js', 'text/javascript; charset=utf-8']],
   ['/market.js', ['market.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']]
@@ -150,10 +153,15 @@ createServer(async (request, response) => {
       if (url.pathname === '/api/research-context') {
         const symbol=url.searchParams.get('symbol') ?? '';
         if (!analyzedStocks.has(symbol)) return json(response,404,{error:'该证券未开启长期研究。'});
-        const [result,events]=await Promise.all([
-          bars(symbol).catch(()=>null).then(prices=>stockDossier(symbol,closedThrough(),prices)),stockEvents(symbol)
+        const cutoff=closedThrough();
+        const chart=stockChart(symbol).catch(()=>null);
+        const dossier=chart.then(value=>stockDossier(symbol,cutoff,value?{rows:value.rows,url:value.source.url}:null));
+        const [session,result,events,institutions,context]=await Promise.all([
+          chart,dossier,stockEvents(symbol),institutionalHistory(symbol,cutoff),marketContext(symbol,cutoff)
         ]);
-        return json(response,200,{...result,events});
+        const forecast=buildForecast(session?.rows??[],{asOf:cutoff,source:session?.source,listingDays:institutions});
+        forecast.drivers=forecastDrivers(forecast,result,events,context,institutions);
+        return json(response,200,{...result,events,forecast});
       }
       if (url.pathname === '/api/events') {
         const symbol=url.searchParams.get('symbol') ?? '';

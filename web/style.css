@@ -87,12 +87,14 @@ small { font-size: 11px; }
 .periods button:hover:not(:disabled) { color: var(--accent); background: white; }
 .history-window { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; padding: 6px 13px; font-size: 11px; color: var(--muted); }
 .history-window div { display: flex; gap: 4px; }
-.history-window button { min-height: 30px; padding: 3px 8px; font-size: 11px; }
+.history-window button { min-height: 34px; padding: 3px 8px; font-size: 11px; }
+.history-window .chart-zoom { min-width: 36px; font-size: 17px; line-height: 1; }
 .chart-head { flex-direction: column; align-items: start; gap: 4px; padding-block: 1px 5px; }
 #candle-info { min-height: 1.5em; font-size: 11px; font-variant-numeric: tabular-nums; }
 .ma-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font: 11px/1.4 ui-monospace, monospace; }
 .ma-legend span:nth-child(1) { color: #9a601a; } .ma-legend span:nth-child(2) { color: #5755bc; } .ma-legend span:nth-child(3) { color: #2273a1; }
-#candles { touch-action: pan-y pinch-zoom; width: 100%; height: clamp(315px, 46vh, 590px); display: block; cursor: crosshair; }
+#candles { touch-action: pan-y; user-select: none; width: 100%; height: clamp(315px, 46vh, 590px); display: block; cursor: crosshair; }
+#candles[data-panning] { cursor: grabbing; }
 .chart-footer { font-size: 10px; border-top: 1px solid var(--line); }
 .chart-actions { justify-content: flex-start; background: var(--subtle); border-radius: 0 0 8px 8px; }
 .chart-actions #explain { margin-left: auto; }
@@ -280,3 +282,32 @@ th { color: var(--muted); font-weight: 550; }
 .event-marker[data-side='交易']:hover,.event-marker[data-side='交易'][aria-pressed='true']{color:white;background:#256090}
 .event-close-values{display:block;white-space:nowrap;color:#5b6b7d;font-size:.73em}
 .overview-card{min-width:0}
+
+.forecast-card { background: var(--surface); }
+.forecast-table { margin-top: 7px; border: 1px solid var(--line); border-radius: 6px; }
+.forecast-table table { font-size: 11px; }
+.forecast-table :is(th,td) { padding: 6px 5px; text-align: right; }
+.forecast-table thead { background: var(--subtle); }
+.forecast-table th:first-child { text-align: left; }
+.forecast-table tbody th small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
+.forecast-table tbody td { font-weight: 650; }
+.forecast-table tbody tr:last-child > * { border-bottom: 0; }
+.forecast-opinions { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0; }
+.forecast-opinions span { background: var(--subtle); border-radius: 4px; padding: 3px 6px; font-size: 11px; }
+.forecast-opinions [data-tone='bullish'] { color: var(--up); background: #fff1f4; }
+.forecast-opinions [data-tone='bearish'] { color: var(--down); background: #eaf8f2; }
+.forecast-note { font-size: 11px; }
+.forecast-evaluation { margin: 6px 0; padding-top: 5px; border-top: 1px solid var(--line); }
+.forecast-evaluation-row { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.forecast-evaluation-row h3 { font-size: 12px; }
+
+
+.forecast-drivers { border-top: 1px solid var(--line); padding-top: 7px; margin-top: 8px; }
+.forecast-drivers h3 { font-size: 12px; margin-bottom: 3px; }
+.forecast-driver { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.forecast-driver:last-child { border-bottom: 0; }
+.forecast-driver-title, .forecast-driver-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; }
+.forecast-driver-status { font-size: 10px; color: var(--muted); padding: 2px 4px; background: var(--subtle); border-radius: 3px; }
+.forecast-driver-status[data-use='model'] { color: var(--accent); background: var(--user-message); }
+.forecast-driver-links { font-size: 11px; }
+.forecast-evaluation code { overflow-wrap: anywhere; user-select: text; }

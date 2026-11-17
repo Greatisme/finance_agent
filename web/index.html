@@ -73,7 +73,9 @@
       <div id="daily-chart-pane">
       <div class="history-window" id="history-window" hidden>
         <span id="history-range" role="status"></span>
-        <div role="group" aria-label="浏览历史窗口">
+        <div class="history-controls" role="group" aria-label="缩放和浏览历史">
+          <button type="button" class="secondary chart-zoom" id="zoom-in" aria-label="放大 K 线" title="放大 K 线">＋</button>
+          <button type="button" class="secondary chart-zoom" id="zoom-out" aria-label="缩小 K 线" title="缩小 K 线">−</button>
           <button type="button" class="secondary" id="history-older">更早</button>
           <button type="button" class="secondary" id="history-newer">更晚</button>
           <button type="button" class="secondary" id="history-latest">最新</button>
@@ -82,7 +84,7 @@
       <div class="chart-head"><p id="candle-info"></p><div class="ma-legend" aria-label="移动平均线"><span>MA5 <b id="ma5">—</b></span><span>MA10 <b id="ma10">—</b></span><span>MA20 <b id="ma20">—</b></span></div></div>
       <div class="event-chart"><div id="event-markers" aria-label="日 K 多空事件"></div>
       <canvas id="candles" role="img" tabindex="0" aria-label="未复权日 K 线与移动平均线，涨红跌绿" aria-describedby="chart-interaction"></canvas></div>
-      <p id="chart-interaction" class="visually-hidden">点击或用左右方向键选择 K 线。左划看更早的行情，右划看较新的行情。</p>
+      <p id="chart-interaction" class="visually-hidden">点击或用方向键选择 K 线。左右滑动翻看历史，双指捏合或按加减键缩放。</p>
       <p id="event-legend" role="status"></p>
       <details class="indicator-options"><summary>技术指标</summary>
         <div>

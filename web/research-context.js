@@ -120,6 +120,155 @@ function tradeHistory(data,stock) {
   return box;
 }
 
+const forecastHorizons=[{sessions:1,label:'日'},{sessions:5,label:'周'},{sessions:20,label:'月'}];
+
+function formatForecastNumber(value,digits) {
+  return Number.isFinite(value)?value.toFixed(digits):'—';
+}
+
+function formatForecastProbability(value) {
+  return Number.isFinite(value)?formatForecastNumber(value*100,1)+'%':'—';
+}
+
+function formatForecastPrice(value) {
+  return Number.isFinite(value)?price(value)+' 元':'—';
+}
+
+function forecastOpinion(horizon) {
+  if(!Number.isFinite(horizon?.upProbability))return ['insufficient','数据不足'];
+  if(!horizon.validation?.signalSupported)return ['weak','观察 · 样本外信号弱'];
+  if(horizon.conclusion==='bullish')return ['bullish','偏多'];
+  if(horizon.conclusion==='bearish')return ['bearish','偏空'];
+  return ['neutral','中性'];
+}
+
+function forecastEvidence(rows,forecast) {
+  const details=el('details',null,'forecast-evaluation');
+  details.append(el('summary','估计区间与样本外检验'));
+  const modelId=[forecast.model?.id,forecast.model?.version].filter(Boolean).join(' · ');
+  if(modelId)details.append(el('p','模型版本 '+modelId,'forecast-note'));
+  if(forecast.inputFingerprint){
+    const line=el('p','输入指纹 ','forecast-note');
+    line.append(el('code',forecast.inputFingerprint));
+    details.append(line);
+  }
+  if(forecast.history?.start)details.append(el('p','行情样本 '+forecast.history.sessions+' 个收盘 · '+forecast.history.start+' 至 '+forecast.asOf,'forecast-note'));
+  if(forecast.model?.method)details.append(el('p',forecast.model.method));
+  for(const {label,sessions,result} of rows){
+    if(!result)continue;
+    const section=el('section',null,'forecast-evaluation-row');
+    section.append(el('h3',label+' · '+sessions+' 个交易日'));
+    const range=result.range;
+    const validation=result.validation;
+    if(Number.isFinite(range?.low)&&Number.isFinite(range.high)){
+      section.append(el('p','期末价格估计区间 '+price(range.low)+'–'+price(range.high)+' 元'+
+        (Number.isFinite(range.coverage)?' · 名义覆盖率 '+formatForecastProbability(range.coverage):'')));
+    }
+    if(Number.isFinite(result.downProbability)){
+      section.append(el('p','下跌概率 '+formatForecastProbability(result.downProbability)+'，持平 '+formatForecastProbability(Math.max(0,1-result.upProbability-result.downProbability))+'。'));
+    }
+    if(Number.isFinite(result.trainingSamples))section.append(el('p','训练样本 '+result.trainingSamples+' 条'));
+    if(Number.isFinite(validation?.samples)&&validation.samples>0){
+      const dateRange=validation.start&&validation.end?' · '+validation.start+' 至 '+validation.end:'';
+      section.append(el('p','样本外 '+validation.samples+' 条'+dateRange));
+      if(Number.isFinite(validation.brier)&&Number.isFinite(validation.baselineBrier)){
+        section.append(el('p','Brier 评分 '+formatForecastNumber(validation.brier,3)+' · 基准 '+formatForecastNumber(validation.baselineBrier,3)+'（越低越好）'));
+      }
+      if(Number.isFinite(validation.maePct)&&Number.isFinite(validation.baselineMaePct)){
+        section.append(el('p','涨跌幅平均绝对误差 '+formatForecastNumber(validation.maePct,2)+' · 基准 '+formatForecastNumber(validation.baselineMaePct,2)+' 个百分点'));
+      }
+      const outcomes=[];
+      if(Number.isFinite(validation.directionalAccuracy))outcomes.push('方向命中率 '+formatForecastProbability(validation.directionalAccuracy));
+      if(Number.isFinite(validation.rangeCoverage))outcomes.push('区间实际覆盖率 '+formatForecastProbability(validation.rangeCoverage));
+      if(outcomes.length)section.append(el('p',outcomes.join(' · ')));
+    }else section.append(el('p','样本外检验数据不足。'));
+    const institutions=result.institutionValidation;
+    if(institutions?.samples>0){
+      section.append(el('p','机构席位增量检验 '+institutions.samples+' 条 · Brier '+formatForecastNumber(institutions.brier,3)+
+        ' · 同期纯行情 '+formatForecastNumber(institutions.baselineBrier,3)+'。'));
+    }
+    details.append(section);
+  }
+  for(const line of forecast.model?.limitations??[])details.append(el('p',line,'forecast-note'));
+  return details;
+}
+
+function isForecastSource(url) {
+  return typeof url==='string'&&/^https?:\/\//i.test(url);
+}
+
+function forecastDrivers(drivers) {
+  const section=el('section',null,'forecast-drivers');
+  section.append(el('h3','模型输入与研究依据'));
+  const uses={model:'模型输入',context:'研究参考',missing:'待核实'};
+  for(const driver of drivers){
+    const item=el('div',null,'forecast-driver');
+    const heading=el('div',null,'forecast-driver-title');
+    const label=el('span',uses[driver.use]??'待核实','forecast-driver-status');
+    label.dataset.use=driver.use;
+    heading.append(el('strong',driver.label),label);
+    item.append(heading);
+    if(driver.detail)item.append(el('p',driver.detail));
+    const sources=(driver.sources??[]).filter(source=>isForecastSource(source.url));
+    if(sources.length){
+      const links=el('div',null,'forecast-driver-links');
+      for(const source of sources)links.append(link(source.label??'查看数据出处',source.url));
+      item.append(links);
+    }
+    section.append(item);
+  }
+  return section;
+}
+
+function forecastCard(forecast) {
+  const box=card('走势预测与投资意见',true);
+  box.classList.add('forecast-card');
+  if(forecast?.asOf&&Number.isFinite(forecast.basePrice)){
+    box.append(el('p',forecast.asOf+' 收盘 · 基准价 '+formatForecastPrice(forecast.basePrice),'overview-meta'));
+  }
+  const rows=forecastHorizons.map(horizon=>({...horizon,result:forecast?.horizons?.find(item=>item.sessions===horizon.sessions)}));
+  const hasEstimates=rows.some(({result})=>Number.isFinite(result?.upProbability));
+  if(!hasEstimates)box.append(el('p',forecast?.reason??'暂未取得可用的预测数据。'));
+  const wrap=el('div',null,'table-scroll forecast-table');
+  const table=el('table');
+  table.setAttribute('aria-label','日、周、月走势预测');
+  const head=table.createTHead().insertRow();
+  for(const label of ['周期','上涨概率','预期涨跌','预期价格']){
+    const header=el('th',label);
+    header.scope='col';
+    head.append(header);
+  }
+  const body=table.createTBody();
+  for(const {label,sessions,result} of rows){
+    const row=body.insertRow();
+    const period=el('th',label);
+    period.scope='row';
+    period.append(el('small',sessions+' 日'));
+    const change=result?.expectedReturnPct;
+    row.append(period,el('td',formatForecastProbability(result?.upProbability)),
+      el('td',Number.isFinite(change)?pct(change):'—',change>0?'up':change<0?'down':''),
+      el('td',formatForecastPrice(result?.expectedPrice)));
+  }
+  wrap.append(table);
+  box.append(wrap,el('p','日、周、月分别为未来 1、5、20 个交易日。上涨指期末收盘高于基准价。','forecast-note'));
+  const opinion=el('div',null,'forecast-opinions');
+  opinion.setAttribute('aria-label','分周期研究意见');
+  for(const {label,result} of rows){
+    const [tone,summary]=forecastOpinion(result);
+    const item=el('span',label+' · '+summary);
+    item.dataset.tone=tone;
+    opinion.append(item);
+  }
+  box.append(opinion);
+  if(hasEstimates||rows.some(({result})=>result?.validation?.samples)){
+    if(forecast.model?.label)box.append(el('p',forecast.model.label+(forecast.model.priceBasis?' · '+forecast.model.priceBasis:''),'forecast-note'));
+    box.append(forecastEvidence(rows,forecast));
+  }
+  if(isForecastSource(forecast?.source?.url))box.append(link('预测行情数据出处',forecast.source.url));
+  if(forecast?.drivers?.length)box.append(forecastDrivers(forecast.drivers));
+  return box;
+}
+
 function render(data,stock) {
   const timeline=card('多空证据时间线 · '+data.events.length+' 条',true);
   const events=data.events.slice().reverse();
@@ -136,11 +285,9 @@ function render(data,stock) {
   if(technical)chart.append(el('p',technical.date+' 收盘 '+price(technical.close)+' 元 · 当日 '+pct(technical.daily)+' · 近 5 日 '+pct(technical.fiveDay)),
     el('p','距 MA20 '+pct(technical.aboveMA20)+' · 成交量／前 20 日均量 '+price(technical.volumeRatio)+' 倍'),link('日线数据出处',technical.url));
   else chart.append(el('p','日线数据暂不可用。'));
-  const forecast=card('走势预测与投资意见',true);
-  forecast.append(el('p','当前仅积累研究证据。尚未对这类证据完成跨股票、按时间隔离的样本外验证，暂不输出上涨概率或买卖意见。'));
   const review=card('按交易日追查波动');
   review.append(document.getElementById('evidence'));
-  root.replaceChildren(valueCard(data,stock),timeline,tradeHistory(data,stock),chart,forecast,review);
+  root.replaceChildren(valueCard(data,stock),forecastCard(data.forecast),timeline,tradeHistory(data,stock),chart,review);
 }
 
 async function load(chart,refresh=false) {
