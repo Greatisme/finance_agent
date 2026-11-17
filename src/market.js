@@ -66,6 +66,7 @@ function statsAt(rows,index) {
   const volumes = rows.slice(Math.max(0,index-20),index);
   const meanVolume = volumes.length === 20 ? volumes.reduce((sum,item)=>sum+item.volume,0)/20 : 0;
   return {...row, returnPct: prior ? (row.close/prior.close-1)*100 : null,
+    fiveDayReturnPct: index>=5 ? (row.close/rows[index-5].close-1)*100 : null,
     previousClose: prior?.close ?? null, volumeMultiple: meanVolume > 0 ? row.volume/meanVolume : null};
 }
 
@@ -112,7 +113,7 @@ export async function stockEvidence(symbol,date) {
     const [index, disclosures] = await Promise.allSettled([bars('sh000300'),disclosureWindow(stock,date)]);
     const marketIndex = index.status==='fulfilled' ? index.value.rows.findIndex(item=>item.date===date) : -1;
     const benchmark = marketIndex>0 ? {
-      returnPct:statsAt(index.value.rows,marketIndex).returnPct,url:index.value.url
+      returnPct:statsAt(index.value.rows,marketIndex).returnPct, fiveDayReturnPct:statsAt(index.value.rows,marketIndex).fiveDayReturnPct, url:index.value.url
     } : null;
     return {stock:chart.stock,row,source:chart.source,benchmark,
       disclosures:disclosures.status==='fulfilled' ? disclosures.value : null};

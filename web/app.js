@@ -81,7 +81,7 @@ async function sendMessage(message, analysis) {
   if (!analysis) input.value = '';
   bubble('user', message);
   const answer = bubble('assistant', '');
-  status.textContent = '正在连接助手…';
+  status.textContent = analysis ? '正在读取公告、资讯原文和行业行情…' : '正在连接助手…';
   try {
     const response = await fetch('/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, analysis })
@@ -101,6 +101,11 @@ async function sendMessage(message, analysis) {
           answer.textContent += event.value;
           messages.scrollTop = messages.scrollHeight;
         }
+        if (event.type === 'analysis-report') {
+          document.dispatchEvent(new CustomEvent('finance:report',{detail:event.value}));
+          answer.textContent = event.value.movements.map(item=>item.text).join('\n\n');
+        }
+        if (event.type === 'phase') status.textContent = event.value;
         if (event.type === 'tool') status.textContent = event.value === 'finance_run' ? '正在运行研究任务…' : '正在读取研究数据…';
         if (event.type === 'error') throw new Error(event.value);
         if (event.type === 'done') complete = true;
@@ -123,7 +128,8 @@ try {
   if (!history.length) bubble('assistant', '可以询问数据质量、解读实验，或让我运行研究任务。');
   for (const turn of history) {
     bubble('user', turn.message);
-    bubble('assistant', turn.answer);
+    bubble('assistant', turn.report ? turn.report.movements.map(item=>item.text).join('\n\n') : turn.answer);
+    if(turn.report) document.dispatchEvent(new CustomEvent('finance:report',{detail:turn.report}));
   }
 } catch (error) { status.textContent = error.message; }
 finally { send.disabled = false; }

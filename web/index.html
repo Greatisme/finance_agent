@@ -21,7 +21,12 @@
       </form>
       <p id="search-status" role="status"></p>
       <div class="search-results" id="results-list"></div>
-      <div class="quote-line"><h2 id="stock-name">贵州茅台</h2><span id="stock-code" class="engine">SH600519</span><strong id="price">—</strong><span id="change"></span></div>
+      <div class="stock-controls" aria-label="分析关注股票">
+        <button type="button" class="secondary" data-stock="sh603893">瑞芯微 603893</button>
+        <button type="button" class="secondary" data-stock="sz002475">立讯精密 002475</button>
+        <button type="button" class="secondary" data-stock="sz002009">天奇股份 002009</button>
+      </div>
+      <div class="quote-line"><h2 id="stock-name">瑞芯微</h2><span id="stock-code" class="engine">SH603893</span><strong id="price">—</strong><span id="change"></span></div>
       <p id="chart-status" role="status">正在读取行情</p>
       <div class="stock-controls"><label for="range">日 K · 未复权</label><select id="range"><option value="30">30 日</option><option value="60" selected>60 日</option><option value="120">120 日</option></select></div>
       <canvas id="candles" role="img" aria-label="未复权日 K 线与成交量，涨红跌绿"></canvas>

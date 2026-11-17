@@ -82,7 +82,7 @@ function setRange() {
   else ui.selected=$('day').value;
   const row=ui.visible.find(item=>item.date===ui.selected);
   candleSummary(row);
-  $('explain').disabled=!row;
+  $('explain').disabled=!row || !ui.chart?.analysisEnabled;
   draw();
 }
 
@@ -120,9 +120,123 @@ function showEvidence(evidence) {
   box.append(list);
 }
 
+const reports = new Map();
+const reportKey = (symbol,date) => symbol+':'+date;
+
+function addSources(target, refs, available) {
+  for (const id of refs) {
+    const source=available.find(item=>item.id===id);
+    if (source) target.append(' ',link('['+id+'] '+source.label,source.url));
+  }
+}
+
+function renderReport(report) {
+  const box=$('evidence');
+  box.replaceChildren();
+  const title=document.createElement('h3');
+  title.textContent=report.stock.name+' · '+report.date;
+  const stats=document.createElement('p');
+  stats.textContent=`个股 ${pct(report.row.returnPct)} · ${report.industry?.name ?? '行业数据'} ${pct(report.industry?.returnPct)} · 沪深 300 ${pct(report.benchmark?.returnPct)} · 量比 ${report.row.volumeMultiple?.toFixed(2) ?? '—'}`;
+  box.append(title,stats);
+  const basis=document.createElement('p');
+  addSources(basis,['P','I','M'],report.sources);
+  box.append(basis);
+  if(report.industry) {
+    const note=document.createElement('p');
+    note.textContent=report.industry.classification;
+    note.append(' ',link('公司行业资料',report.industry.profileUrl));
+    box.append(note);
+  }
+  const findings=document.createElement('ul');
+  for(const finding of report.movements) {
+    const row=document.createElement('li');
+    row.textContent=finding.text;
+    addSources(row,finding.refs,report.sources);
+    findings.append(row);
+  }
+  box.append(findings);
+  for(const text of report.limitations) {
+    const note=document.createElement('p'); note.textContent=text; box.append(note);
+  }
+  const heading=document.createElement('h3');
+  heading.textContent='公告与资讯时间线';
+  const range=document.createElement('p');
+  range.textContent=`${report.window.start} 至 ${report.window.end} · 新到旧 · 巨潮公告最多 8 条，东方财富资讯最多 6 条。资讯只覆盖本次搜索返回范围。`;
+  box.append(heading,range);
+  if (report.window.disclosureTotal===null || report.window.newsScanned===null) {
+    const availability = document.createElement('p');
+    availability.textContent=[report.window.disclosureTotal===null?'公告源暂不可用':'',report.window.newsScanned===null?'资讯源暂不可用':''].filter(Boolean).join(' · ');
+    box.append(availability);
+  }
+  if(!report.entries.length) {
+    const empty=document.createElement('p'); empty.textContent='所查范围内没有取得可列出的公告或资讯。'; box.append(empty); return;
+  }
+  const filters=document.createElement('div');
+  filters.className='timeline-filters';
+  const kindFilter=document.createElement('select'), impactFilter=document.createElement('select');
+  function fillFilter(select,label,values) {
+    select.setAttribute('aria-label',label);
+    for(const value of ['',...values]){
+      const option=document.createElement('option'); option.value=value; option.textContent=value||label; select.append(option);
+    }
+  }
+  fillFilter(kindFilter,'全部来源',['公告','资讯']);
+  fillFilter(impactFilter,'全部影响',['利多','利空','中性','多空并存','证据不足']);
+  filters.append(kindFilter,impactFilter);
+  const list=document.createElement('div');
+  list.className='timeline';
+  function fillRows() {
+    list.replaceChildren();
+    for(const entry of report.entries){
+      if(kindFilter.value && entry.kind!==kindFilter.value || impactFilter.value && entry.impact!==impactFilter.value) continue;
+      const item=document.createElement('details');
+      const summary=document.createElement('summary');
+      const badge=document.createElement('span');
+      badge.className='impact';
+      badge.dataset.impact=entry.impact;
+      badge.textContent=entry.impact;
+      summary.append(badge,entry.title);
+      const meta=document.createElement('p');
+      meta.textContent=`${entry.published ?? entry.date} · ${entry.kind} · ${entry.publisher} · ${entry.category}${entry.afterClose ? ' · 收盘后' : ''}`;
+      const explanation=document.createElement('p');
+      explanation.textContent=entry.explanation;
+      item.append(summary,meta,explanation);
+      if(entry.quote){
+        const quote=document.createElement('blockquote');
+        quote.textContent=entry.quote;
+        item.append(quote,link(entry.kind==='公告'?'查看原文第 '+entry.part+' 页':'查看资讯原文',entry.quoteUrl));
+      } else item.append(link('查看原文',entry.url));
+      if(entry.coverage?.partial){
+        const coverage=document.createElement('p');
+        coverage.textContent='分析基于已提取的部分正文。';
+        item.append(coverage);
+      }
+      list.append(item);
+    }
+    if(!list.children.length) list.textContent='没有符合当前筛选条件的条目。';
+  }
+  kindFilter.addEventListener('change',fillRows);
+  impactFilter.addEventListener('change',fillRows);
+  box.append(filters,list);
+  fillRows();
+}
+
+document.addEventListener('finance:report',event=>{
+  const report=event.detail;
+  reports.set(reportKey(report.stock.symbol,report.date),report);
+  if(report.stock.symbol===ui.chart?.stock.symbol && report.date===ui.selected) renderReport(report);
+});
+
+function updateSelectedEvidence() {
+  const symbol=ui.chart?.stock.symbol;
+  const saved=reports.get(reportKey(symbol,ui.selected));
+  if(saved) renderReport(saved);
+  else $('evidence').textContent=ui.chart?.analysisEnabled?'点击 K 线或选择交易日，读取并分析个股公告与资讯。':'当前分析范围为瑞芯微、立讯精密和天奇股份。';
+}
+
 async function analyze(date) {
   const row=ui.visible.find(item=>item.date===date);
-  if(!row || row.previousClose===null || !ui.chart) return;
+  if(!row || row.previousClose===null || !ui.chart?.analysisEnabled) return;
   ui.selected=date;
   $('day').value=date;
   candleSummary(row);
@@ -162,6 +276,7 @@ async function loadStock(symbol) {
     $('chart-status').textContent=`行情至 ${last.date} · 腾讯日线 · 最新一根可能仍在盘中`;
     $('results-list').replaceChildren();
     setRange();
+    updateSelectedEvidence();
   } catch(error) {
     if(request===ui.request) $('chart-status').textContent=error.message;
   }
@@ -205,7 +320,8 @@ canvas.addEventListener('pointermove',event=>{
 });
 canvas.addEventListener('pointerleave',()=>candleSummary(ui.visible.find(row=>row.date===ui.selected)));
 $('range').addEventListener('change',setRange);
-$('day').addEventListener('change',()=>{ui.selected=$('day').value;candleSummary(ui.visible.find(row=>row.date===ui.selected));draw();});
+$('day').addEventListener('change',()=>{ui.selected=$('day').value;candleSummary(ui.visible.find(row=>row.date===ui.selected));draw();updateSelectedEvidence();});
 $('explain').addEventListener('click',()=>void analyze($('day').value));
 new ResizeObserver(draw).observe(canvas);
-void loadStock('sh600519');
+document.querySelectorAll('[data-stock]').forEach(button=>button.addEventListener('click',()=>void loadStock(button.dataset.stock)));
+void loadStock('sh603893');

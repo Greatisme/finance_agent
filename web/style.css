@@ -70,3 +70,17 @@ details > summary { cursor:pointer; margin-bottom:8px; color:var(--accent); }
 .stock-controls { margin-top:12px; }
 .stock-controls label { margin:0; }
 .stock-controls select { font-size:12px; }
+
+#evidence { max-height: 470px; }
+#evidence h3 { margin: 10px 0 5px; }
+#evidence h3:first-child { margin-top:0; }
+#evidence li { margin-bottom:8px; }
+.timeline-filters { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.timeline-filters select { font:inherit; padding:5px 8px; border:1px solid var(--control-line); border-radius:6px; color:var(--text); background:var(--surface); }
+.timeline details { background:var(--surface); border:1px solid var(--line); border-radius:7px; margin:7px 0; padding:9px; }
+.timeline summary { margin:0; color:var(--text); line-height:1.5; }
+.timeline blockquote { margin:8px 0; padding:5px 9px; border-left:3px solid var(--line); }
+.impact { display:inline-block; font-size:11px; font-weight:650; border-radius:4px; background:#eef0ee; color:#40524c; padding:1px 6px; margin-right:6px; }
+.impact[data-impact="利多"] { background:#fde8eb; color:#a32d40; }
+.impact[data-impact="利空"] { background:#e0f2e9; color:#176653; }
+.impact[data-impact="多空并存"] { background:#fff1d6; color:#865610; }

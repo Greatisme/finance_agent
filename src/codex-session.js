@@ -60,6 +60,7 @@ export class CodexSession {
       } else if (message.params?.threadId === this.#active?.threadId && this.#active) {
         const turn = this.#active;
         if (message.method === 'item/agentMessage/delta') turn.onDelta(message.params.delta);
+        if (message.method === 'item/completed' && message.params.item?.type === 'agentMessage') turn.lastAnswer = message.params.item.text;
         if (message.method === 'turn/completed') turn.finish(message.params.turn);
       }
     });
@@ -119,7 +120,7 @@ export class CodexSession {
     this.#write({ method: 'initialized' });
   }
 
-  async turn(threadId, text, onDelta) {
+  async turn(threadId, text, onDelta, outputSchema) {
     if (this.#active) throw new Error('当前会话已有任务在运行');
     let timer;
     const completion = new Promise((resolve, reject) => {
@@ -130,11 +131,12 @@ export class CodexSession {
       const [, turn] = await Promise.all([
         this.request('turn/start', {
           threadId, cwd: this.#cwd, approvalPolicy: 'never', sandboxPolicy: { type: 'readOnly' },
-          input: [{ type: 'text', text, text_elements: [] }]
+          input: [{ type: 'text', text, text_elements: [] }], outputSchema
         }),
         completion
       ]);
       if (turn.status !== 'completed') throw new Error(turn.error?.message ?? `Codex 对话状态：${turn.status}`);
+      return this.#active.lastAnswer;
     } finally {
       clearTimeout(timer);
       this.#active = undefined;

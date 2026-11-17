@@ -10,7 +10,7 @@ const dataDirectory = path.resolve('data/assistant');
 const workspace = path.join(dataDirectory, 'workspace');
 const stateFile = path.join(dataDirectory, 'conversation.json');
 const legacyEnv = { ...process.env, CODEX_HOME: path.join(dataDirectory, 'codex-home') };
-const instructions = '你是 Finance Agent 软件内置研究助手。使用 finance_read 查询真实数据和实验结果，使用 finance_run 执行用户要求的采集、审计或实验。工具失败或数据缺失时明确说明。不要把历史预测当作实时预测，不要编造行情、得分或投资结论。';
+const instructions = '你是 Finance Agent 软件内置研究助手。使用 finance_read 查询真实数据和实验结果，使用 finance_run 执行用户要求的采集、审计或实验。工具失败或数据缺失时明确说明。不要把历史预测当作实时预测，不要编造行情、得分或投资结论。当前个股涨跌分析范围仅限瑞芯微、立讯精密和天奇股份。';
 
 async function savedConversation() {
   try { return JSON.parse(await readFile(stateFile, 'utf8')); }

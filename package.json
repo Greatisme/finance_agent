@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "collect": "node src/cli.js collect",
     "audit": "node src/cli.js audit",
@@ -12,5 +14,9 @@
     "test": "node --test",
     "assistant": "node src/assistant.js",
     "start": "node src/web.js"
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "pdfjs-dist": "6.5.438"
   }
 }
