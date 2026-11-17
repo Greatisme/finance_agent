@@ -72,13 +72,12 @@ npm run experiment
 在仓库根目录运行。需要可用的 Codex CLI 与 ChatGPT 登录。Windows 的 npm 全局安装可自动寻找可执行文件，其他安装方式可以通过环境变量 FINANCE_CODEX_BIN 指定 Codex 可执行文件的路径。
 
 ```powershell
-node src/assistant.js --login
 npm run assistant
 ```
 
 例如输入「读取数据审计，告诉我公告覆盖范围」或「运行基准实验，比较 5 日与 20 日预测」。助手通过软件工具调用采集、审计、实验和报告读取，权限覆盖当前研究流程。实验查询展示历史结果。
 
-软件使用独立的 Codex App Server 会话。工作目录为 `data/assistant/workspace/`，Codex 登录和会话历史写入 `data/assistant/codex-home/`，最新会话 ID 保存在 `data/assistant/conversation.json`。这些目录属于本机用户数据，整个 `data/` 已被 Git 忽略。登录时使用该工作空间自己的 Codex 登录。
+新会话复用本机 Codex 登录。工作目录为 `data/assistant/workspace/`，会话 ID 保存在 `data/assistant/conversation.json`。Codex 原生会话历史由本机 Codex 保存，软件的 `data/` 已被 Git 忽略。已有旧版独立会话继续使用原有目录。
 
 再次运行 `npm run assistant` 会续接软件会话。运行 `node src/assistant.js --new` 会启用新会话，旧历史保留在本机。输入 `/exit` 退出。
 
@@ -90,7 +89,7 @@ npm run assistant
 npm start
 ```
 
-打开 [http://127.0.0.1:4317/](http://127.0.0.1:4317/) 查看数据审计和基准实验报告。首次使用研究助手前，在同一仓库目录运行 `node src/assistant.js --login` 并完成登录。前端由本机 Node.js 后端提供，页面和接口使用同一个地址。
+打开 [http://127.0.0.1:4317/](http://127.0.0.1:4317/) 查看数据审计和基准实验报告。已登录本机 Codex 时可直接使用研究助手。如果本机尚未登录，在仓库目录运行 `node src/assistant.js --login`。前端由本机 Node.js 后端提供，页面和接口使用同一个地址。
 
 | 接口 | 用途 |
 |---|---|

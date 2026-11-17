@@ -59,7 +59,7 @@ async function chat(request, response) {
       answer += delta;
       emit('delta', delta);
     });
-    await saveThread(assistant.thread.id);
+    await saveThread(assistant.thread.id, assistant.storage);
     const rows = await history(assistant.thread.id);
     rows.push({ message: message.trim(), answer });
     const tmp = historyFile + '.' + randomUUID() + '.tmp';
