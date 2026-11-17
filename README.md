@@ -66,3 +66,20 @@ npm run experiment
 |`test/research.test.js`|时间泄漏、标签、指标、审计等关键正确性测试|
 
 下一阶段优先补历史股票池、分红复权、停复牌、公告版本及财报内容；在新的独立区间与前瞻记录上验证后，再考虑网页产品和投资意见输出。
+
+## 内置 AI 助手
+
+在仓库根目录运行。需要可用的 Codex CLI 与 ChatGPT 登录。Windows 的 npm 全局安装可自动寻找可执行文件，其他安装方式可以通过环境变量 FINANCE_CODEX_BIN 指定 Codex 可执行文件的路径。
+
+```powershell
+node src/assistant.js --login
+npm run assistant
+```
+
+例如输入「读取数据审计，告诉我公告覆盖范围」或「运行基准实验，比较 5 日与 20 日预测」。助手通过软件工具调用采集、审计、实验和报告读取，权限覆盖当前研究流程。实验查询展示历史结果。
+
+软件使用独立的 Codex App Server 会话。工作目录为 `data/assistant/workspace/`，Codex 登录和会话历史写入 `data/assistant/codex-home/`，最新会话 ID 保存在 `data/assistant/conversation.json`。这些目录属于本机用户数据，整个 `data/` 已被 Git 忽略。登录时使用该工作空间自己的 Codex 登录。
+
+再次运行 `npm run assistant` 会续接软件会话。运行 `node src/assistant.js --new` 会启用新会话，旧历史保留在本机。输入 `/exit` 退出。
+
+[OpenAI 官方 Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)

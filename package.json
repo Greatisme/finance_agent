@@ -9,6 +9,7 @@
     "audit": "node src/cli.js audit",
     "experiment": "node src/cli.js experiment",
     "research": "node src/cli.js all",
-    "test": "node --test"
+    "test": "node --test",
+    "assistant": "node src/assistant.js"
   }
 }
