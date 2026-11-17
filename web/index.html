@@ -6,6 +6,7 @@
   <title>Finance Agent · A 股研究终端</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/research-context.js"></script>
   <script type="module" src="/market.js"></script>
   <script type="module" src="/intraday.js"></script>
 </head>
@@ -65,13 +66,26 @@
           <button type="button" data-range="30" aria-pressed="false">30 日</button>
           <button type="button" data-range="60" aria-pressed="true">60 日</button>
           <button type="button" data-range="120" aria-pressed="false">120 日</button>
+          <button type="button" data-range="250" aria-pressed="false">250 日</button>
         </div>
       </div>
       <div id="daily-chart-pane">
       <div class="chart-head"><p id="candle-info"></p><div class="ma-legend" aria-label="移动平均线"><span>MA5 <b id="ma5">—</b></span><span>MA10 <b id="ma10">—</b></span><span>MA20 <b id="ma20">—</b></span></div></div>
-      <canvas id="candles" role="img" aria-label="未复权日 K 线、移动平均线与成交量，涨红跌绿"></canvas>
+      <div class="event-chart"><div id="event-markers" aria-label="日 K 多空事件"></div>
+      <canvas id="candles" role="img" aria-label="未复权日 K 线与移动平均线，涨红跌绿"></canvas></div>
+      <p id="event-legend" role="status"></p>
+      <details class="indicator-options"><summary>技术指标</summary>
+        <div>
+          <label><input type="checkbox" data-indicator="volume" checked> 成交量</label>
+          <label><input type="checkbox" data-indicator="macd"> MACD</label>
+          <label><input type="checkbox" data-indicator="rsi"> RSI</label>
+        </div>
+      </details>
+      <section id="indicator-macd" class="indicator-pane" hidden><p><strong>MACD (12, 26, 9)</strong> <span></span></p><canvas role="img" aria-label="MACD：DIF、DEA 与二倍差值柱"></canvas></section>
+      <section id="indicator-rsi" class="indicator-pane" hidden><p><strong>RSI (14)</strong> <span></span></p><canvas role="img" aria-label="十四期 RSI 与 30、70 参考线"></canvas></section>
       <div class="chart-footer"><p id="chart-status" role="status">正在读取行情</p><span title="收盘价相对前一日涨跌达到 3%">● 波动标记 ≥ 3%</span></div>
       <div class="chart-actions"><label for="day">分析交易日</label><select id="day"></select><button type="button" id="explain" disabled>分析波动</button></div>
+      <section id="event-detail" aria-label="事件原文和后续表现" hidden></section>
       </div>
       <div id="minute-chart-pane" hidden>
         <div class="chart-head"><p id="minute-info"></p></div>
@@ -90,12 +104,13 @@
     </details>
   </section>
   <section id="research-page" class="chat panel" aria-labelledby="chat-title">
-    <div class="research-head"><h2 id="chat-title">研究助手</h2><span class="engine">Codex</span></div>
+    <div class="research-head"><h2 id="chat-title">个股研究</h2><span class="engine">Codex</span></div>
     <nav class="research-tabs" aria-label="研究助手视图">
-      <button id="evidence-tab" type="button" aria-pressed="true" aria-controls="evidence">波动分析</button>
+      <button id="evidence-tab" type="button" aria-pressed="true" aria-controls="research-content">个股档案</button>
       <button id="chat-tab" type="button" aria-pressed="false" aria-controls="messages">对话记录</button>
     </nav>
-    <div id="evidence" aria-live="polite"><div class="empty-analysis"><span aria-hidden="true"></span><strong>选中一根 K 线</strong><p>查看当日行业对照、公告与资讯。</p></div></div>
+    <div id="research-content"><div id="research-overview"></div>
+    <div id="evidence" aria-live="polite"><div class="empty-analysis"><span aria-hidden="true"></span><strong>选中一根 K 线</strong><p>从长期档案出发，也可点日 K 追查某段波动。</p></div></div></div>
     <div class="messages" id="messages" role="log" aria-label="对话记录" hidden></div>
     <div class="chat-bottom">
       <form id="chat-form">

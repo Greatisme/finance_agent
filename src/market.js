@@ -44,9 +44,9 @@ export async function searchStocks(input) {
   return matches.sort((a,b) => rank(a)-rank(b)).slice(0,10).map(({symbol,name,code}) => ({symbol,name,code}));
 }
 
-async function bars(symbol) {
+export async function bars(symbol) {
   return cached('bars:'+symbol, 5 * 60_000, async () => {
-    const url = `${quoteHost}/appstock/app/fqkline/get?param=${symbol},day,,,140,`;
+    const url = `${quoteHost}/appstock/app/fqkline/get?param=${symbol},day,,,300,`;
     const payload = await getJson(url);
     const series = payload.data?.[symbol]?.day;
     if (payload.code !== 0 || !Array.isArray(series)) throw new Error('未取得腾讯未复权日线');
@@ -86,8 +86,8 @@ function dateOffset(date, days) {
   return day.toISOString().slice(0,10);
 }
 
-async function disclosureWindow(stock, date) {
-  const start = dateOffset(date,-30);
+async function disclosureWindow(stock, date, { days=30, limit=8 }={}) {
+  const start = dateOffset(date,-days);
   const url = cninfo+'/new/hisAnnouncement/query';
   const body = new URLSearchParams({pageNum:'1',pageSize:'30',tabName:'fulltext',column:stock.market,
     stock:stock.code+','+stock.orgId,seDate:start+'~'+date});
@@ -101,7 +101,19 @@ async function disclosureWindow(stock, date) {
       title:row.announcementTitle.replace(/<[^>]*>/g,'').slice(0,220),
       date:row.adjunctUrl.split('/')[1],url:'https://static.cninfo.com.cn/'+row.adjunctUrl
     }])).values()].filter(row=>row.date>=start && row.date<=date);
-  return {start,end:date,total:result.totalAnnouncement,items:items.slice(0,8)};
+  return {start,end:date,total:result.totalAnnouncement,items:items.slice(0,limit)};
+}
+
+export async function financialFiling(symbol,report) {
+  const title = {'三季报':/第?三季度报告/,'一季报':/第?一季度报告/,'半年报':/半年度报告/,'年报':/年度报告/}[report.kind];
+  if(!title)return null;
+  return cached('filing:'+symbol+':'+report.period,3600_000,async()=>{
+    const stock=(await directory()).find(item=>item.symbol===symbol);
+    if(!stock)return null;
+    const data=await disclosureWindow(stock,report.disclosed,{days:1,limit:30});
+    return data.items.find(item=>item.title.includes(report.period.slice(0,4)) && title.test(item.title) &&
+      !/摘要|英文|提示性|修订前/.test(item.title))??null;
+  });
 }
 
 export async function stockEvidence(symbol,date) {

@@ -116,6 +116,19 @@ async function eastmoney(url) {
   return JSON.parse((await fetchSource(url, 1024*1024)).toString('utf8')).data;
 }
 
+export async function industryHistory(symbol, date, limit = 25) {
+  const sector=sectors[symbol];
+  if (!sector) return null;
+  const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?'+new URLSearchParams({
+    secid:'90.'+sector.code,klt:'101',fqt:'0',lmt:String(limit),end:date.replaceAll('-',''),fields1:'f1,f2',fields2:'f51,f53'
+  });
+  const result=await eastmoney(url);
+  if(result?.code!==sector.code || !Array.isArray(result.klines)) return null;
+  const rows=result.klines.map(line=>line.split(',')).map(([date,value])=>({date,close:Number(value)}))
+    .filter(row=>/^\d{4}-\d{2}-\d{2}$/.test(row.date)&&Number.isFinite(row.close)&&row.close>0);
+  return {name:sector.name,url,rows};
+}
+
 export async function stockIndustry(stock,date) {
   const sector=sectors[stock.symbol];
   if(!sector) return null;

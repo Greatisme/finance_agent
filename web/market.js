@@ -1,3 +1,6 @@
+import { showsVolume, setIndicatorHistory, drawIndicators } from './indicators.js';
+import { eventTrackHeight, layoutEventMarkers, loadEventMarkers, paintEventRange } from './events.js';
+
 const $ = id => document.getElementById(id);
 const canvas = $('candles');
 const ctx = canvas.getContext('2d');
@@ -61,7 +64,8 @@ function draw() {
   ctx.setTransform(ratio,0,0,ratio,0,0);
   const rows = ui.visible;
   if (!rows.length) return;
-  const left=12, right=57, top=17, bottom=height-94, volumeBottom=height-24;
+  const volumeVisible=showsVolume();
+  const left=12, right=57, top=17+eventTrackHeight(rows), bottom=height-(volumeVisible?94:35), volumeBottom=height-24;
   const averages=rows.flatMap(row=>ui.averages.get(row.date)??[]).filter(value=>value!==null);
   const high=Math.max(...rows.map(row=>row.high),...averages);
   const low=Math.min(...rows.map(row=>row.low),...averages);
@@ -71,6 +75,8 @@ function draw() {
   ui.left=left;
   ui.gap=gap;
   const y = value => top+(high+pad-value)/(high-low+2*pad)*(bottom-top);
+  paintEventRange(ctx,rows,left,gap,top,bottom);
+  layoutEventMarkers(rows,left,gap);
   ctx.font='11px system-ui';
   ctx.textBaseline='middle';
   for (let i=0;i<=4;i++) {
@@ -81,10 +87,12 @@ function draw() {
     ctx.fillText(price(value),width-right+5,yy);
   }
   const divider = bottom + 19;
-  ctx.strokeStyle=line;
-  ctx.beginPath(); ctx.moveTo(left,divider); ctx.lineTo(width-right,divider); ctx.stroke();
-  ctx.fillStyle=muted;
-  ctx.fillText('成交量',left,divider+10);
+  if(volumeVisible){
+    ctx.strokeStyle=line;
+    ctx.beginPath(); ctx.moveTo(left,divider); ctx.lineTo(width-right,divider); ctx.stroke();
+    ctx.fillStyle=muted;
+    ctx.fillText('成交量',left,divider+10);
+  }
   for (const [index, row] of rows.entries()) {
     const x=left+(index+.5)*gap, bar=Math.max(1,Math.min(12,gap*.68));
     const color=row.close>=row.open?red:green;
@@ -95,7 +103,7 @@ function draw() {
     ctx.strokeStyle=color; ctx.fillStyle=color;
     ctx.beginPath();ctx.moveTo(x,y(row.high));ctx.lineTo(x,y(row.low));ctx.stroke();
     ctx.fillRect(x-bar/2,Math.min(y(row.open),y(row.close)),bar,Math.max(1.2,Math.abs(y(row.open)-y(row.close))));
-    const v=row.volume/maxVolume*48;
+    const v=volumeVisible?row.volume/maxVolume*48:0;
     ctx.globalAlpha=.55;ctx.fillRect(x-bar/2,volumeBottom-v,bar,v);ctx.globalAlpha=1;
     if (Math.abs(row.returnPct ?? 0)>=3) {
       ctx.beginPath();ctx.arc(x,Math.max(top+3,y(row.high)-6),2.1,0,2*Math.PI);ctx.fill();
@@ -147,6 +155,7 @@ function setRange() {
   candleSummary(row);
   $('explain').disabled=!row || !ui.chart?.analysisEnabled;
   draw();
+  drawIndicators(ui.visible);
 }
 
 function link(label,url) {
@@ -404,11 +413,13 @@ async function loadStock(symbol, openMarket = true) {
     const chart=await getChart(symbol);
     if(request!==ui.request) return;
     ui.chart=chart;
+    void loadEventMarkers(symbol,chart.analysisEnabled);
     document.dispatchEvent(new CustomEvent('finance:stock',{detail:chart}));
     if (openMarket) document.dispatchEvent(new Event('finance:show-market'));
     ui.rows=chart.rows;
     ui.reviewPinned=false;
     setAverages(chart.rows);
+    setIndicatorHistory(chart.rows);
     updateWatch(chart);
     document.querySelectorAll('[data-stock]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.stock===symbol)));
     ui.selected=chart.rows.at(-1).date;
@@ -491,7 +502,11 @@ document.querySelectorAll('[data-range]').forEach(button=>button.addEventListene
 }));
 $('day').addEventListener('change',()=>{ui.reviewPinned=true;ui.selected=$('day').value;candleSummary(ui.visible.find(row=>row.date===ui.selected));draw();updateSelectedEvidence();});
 $('explain').addEventListener('click',()=>void analyze($('day').value));
-new ResizeObserver(draw).observe(canvas);
+new ResizeObserver(()=>{draw();drawIndicators(ui.visible);}).observe(canvas);
+document.addEventListener('finance:update-annotations',draw);
+document.addEventListener('finance:report',event=>{
+  if(event.detail.stock.symbol===ui.chart?.stock.symbol) void loadEventMarkers(ui.chart.stock.symbol,ui.chart.analysisEnabled);
+});
 document.querySelectorAll('[data-stock]').forEach(button=>button.addEventListener('click',()=>{
   document.dispatchEvent(new Event('finance:show-market'));
   void loadStock(button.dataset.stock);

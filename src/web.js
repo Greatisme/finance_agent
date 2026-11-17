@@ -1,12 +1,15 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, rename } from 'node:fs/promises';
+import { readFile, writeFile, rename, mkdir, appendFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { openAssistant, savedThread, saveThread } from './assistant-runtime.js';
 import { callFinanceTool } from './assistant-tools.js';
 import { intradaySnapshot, startIntraday } from './intraday.js';
-import { searchStocks, stockChart, stockEvidence } from './market.js';
-import { analyzedStocks, readEvidenceWindow } from './market-sources.js';
+import { bars, searchStocks, stockChart, stockEvidence } from './market.js';
+import { analyzedStocks, industryHistory, readEvidenceWindow } from './market-sources.js';
 import { analysisSchema, makeAnalysisPrompt, assembleAnalysis, analysisText } from './market-analysis.js';
+
+import { researchContext, stockDossier, listedDays, publicTrades } from './research-context.js';
+import { reviewedEvents, followThrough, closedThrough } from './market-events.js';
 
 const port = Number(process.env.FINANCE_PORT ?? 4317);
 const host = '127.0.0.1';
@@ -16,6 +19,9 @@ const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/intraday.js', ['intraday.js', 'text/javascript; charset=utf-8']],
+  ['/research-context.js', ['research-context.js', 'text/javascript; charset=utf-8']],
+  ['/indicators.js', ['indicators.js', 'text/javascript; charset=utf-8']],
+  ['/events.js', ['events.js', 'text/javascript; charset=utf-8']],
   ['/market.js', ['market.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']]
 ]);
@@ -27,6 +33,19 @@ async function history(threadId) {
     const saved = JSON.parse(await readFile(historyFile, 'utf8'));
     return saved.threadId === threadId ? saved.rows : [];
   } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+}
+
+const archivePath = symbol => 'data/assistant/research/' + symbol + '.ndjson';
+
+async function archiveRows(symbol) {
+  try {
+    const text=await readFile(archivePath(symbol),'utf8');
+    return text.split(/\r?\n/).filter(Boolean).map(line=>({report:JSON.parse(line)}));
+  } catch(error) { if(error.code==='ENOENT')return []; throw error; }
+}
+
+async function stockEvents(symbol) {
+  return reviewedEvents([...(await history(await savedThread())),...(await archiveRows(symbol))],symbol);
 }
 
 function json(response, status, value) {
@@ -61,7 +80,11 @@ async function chat(request, response) {
       if (!analyzedStocks.has(symbol)) return json(response, 400, { error: '当前仅分析瑞芯微、立讯精密和天奇股份。' });
       const base = await stockEvidence(symbol, String(body.analysis.date ?? ''));
       if (!base) return json(response, 400, { error: '选中的交易日缺少可分析的行情。' });
-      evidence = await readEvidenceWindow(base);
+      const [window, context] = await Promise.allSettled([
+        readEvidenceWindow(base), bars(symbol).then(prices=>researchContext(symbol,base.row.date,prices))
+      ]);
+      if(window.status==='rejected')throw window.reason;
+      evidence = {...window.value,context:context.value??null};
     }
     const emit = (type, value) => {
       if (!response.destroyed) response.write(JSON.stringify({ type, value }) + '\n');
@@ -77,6 +100,8 @@ async function chat(request, response) {
       const final = await assistant.session.turn(assistant.thread.id, makeAnalysisPrompt(evidence), delta => { deltas += delta; }, analysisSchema);
       report = assembleAnalysis(evidence, final || deltas);
       answer = analysisText(report);
+      await mkdir('data/assistant/research',{recursive:true});
+      await appendFile(archivePath(report.stock.symbol), JSON.stringify(report)+'\n');
     } else {
       await assistant.session.turn(assistant.thread.id, message.trim(), delta => {
         answer += delta;
@@ -116,6 +141,37 @@ createServer(async (request, response) => {
       if (url.pathname === '/api/intraday') {
         const data=intradaySnapshot(url.searchParams.get('symbol') ?? '');
         return json(response,data?200:404,data??{error:'本股不在分时采集范围内。'});
+      }
+      if (url.pathname === '/api/research-context') {
+        const symbol=url.searchParams.get('symbol') ?? '';
+        if (!analyzedStocks.has(symbol)) return json(response,404,{error:'该证券未开启长期研究。'});
+        const [result,events]=await Promise.all([
+          bars(symbol).catch(()=>null).then(prices=>stockDossier(symbol,closedThrough(),prices)),stockEvents(symbol)
+        ]);
+        return json(response,200,{...result,events});
+      }
+      if (url.pathname === '/api/events') {
+        const symbol=url.searchParams.get('symbol') ?? '';
+        if (!analyzedStocks.has(symbol)) return json(response,404,{error:'该证券未开启事件标注。'});
+        const [events,list]=await Promise.all([stockEvents(symbol),listedDays(symbol.slice(2),closedThrough()).catch(()=>null)]);
+        return json(response,200,[...events,...(list?.days??[]).map(item=>({...item,side:'交易',title:'龙虎榜 · '+item.reasons.join('；')}))]
+          .sort((a,b)=>a.date.localeCompare(b.date)));
+      }
+      if (url.pathname === '/api/disclosed-trades') {
+        const symbol=url.searchParams.get('symbol') ?? '', date=url.searchParams.get('date') ?? '';
+        if (!analyzedStocks.has(symbol)||!/^\d{4}-\d{2}-\d{2}$/.test(date))return json(response,400,{error:'证券或日期无效。'});
+        return json(response,200,await publicTrades(symbol.slice(2),date));
+      }
+      if (url.pathname === '/api/event-performance') {
+        const symbol=url.searchParams.get('symbol') ?? '';
+        const date=url.searchParams.get('date') ?? '';
+        if (!analyzedStocks.has(symbol) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(response,400,{error:'证券或日期无效。'});
+        const cutoff=closedThrough();
+        const [stock,market,industry]=await Promise.allSettled([bars(symbol),bars('sh000300'),industryHistory(symbol,cutoff,300)]);
+        const performance=followThrough(date,market.value?.rows??[],stock.value?.rows??[],industry.value?.rows??[],cutoff);
+        return json(response,200,{...performance,sector:industry.value?.name??null,
+          sources:{stock:stock.value?.url??null,industry:industry.value?.url??null,calendar:market.value?.url??null},
+          availability:{calendar:!!market.value,stock:!!stock.value,industry:!!industry.value}});
       }
       if (url.pathname === '/api/stocks') return json(response, 200, await searchStocks(url.searchParams.get('q') ?? ''));
       if (url.pathname === '/api/chart' || url.pathname === '/api/evidence') {

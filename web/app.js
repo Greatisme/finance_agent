@@ -19,7 +19,7 @@ document.addEventListener('finance:show-market',()=>showPage('market'));
 function showPanel(view) {
   const chat = view === 'chat';
   element('messages').hidden = !chat;
-  element('evidence').hidden = chat;
+  element('research-content').hidden = chat;
   element('chat-tab').setAttribute('aria-pressed', String(chat));
   element('evidence-tab').setAttribute('aria-pressed', String(!chat));
   if (chat) messages.scrollTop = messages.scrollHeight;
