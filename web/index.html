@@ -2,55 +2,114 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Finance Agent · A 股研究工作台</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Finance Agent · A 股研究终端</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
   <script type="module" src="/market.js"></script>
+  <script type="module" src="/intraday.js"></script>
 </head>
 <body>
-<header><div class="brand">FINANCE <span>AGENT</span></div><span class="local">本地工作台</span></header>
-<main>
-  <section class="research" aria-labelledby="research-title">
-    <div class="intro"><p class="eyebrow">A 股研究</p><h1 id="research-title">个股行情</h1></div>
-    <section class="card" aria-labelledby="stock-name">
-      <form id="stock-form" class="stock-search">
-        <label for="stock-query">股票名称或代码</label>
-        <input id="stock-query" maxlength="40" autocomplete="off" placeholder="例如 宁德时代 / 300750" required>
-        <button>搜索</button>
-      </form>
-      <p id="search-status" role="status"></p>
-      <div class="search-results" id="results-list"></div>
-      <div class="stock-controls" aria-label="分析关注股票">
-        <button type="button" class="secondary" data-stock="sh603893">瑞芯微 603893</button>
-        <button type="button" class="secondary" data-stock="sz002475">立讯精密 002475</button>
-        <button type="button" class="secondary" data-stock="sz002009">天奇股份 002009</button>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Finance<span class="brand-accent">Agent</span><small>A 股研究终端</small></span></div>
+  <form id="stock-form" class="stock-search">
+    <label for="stock-query" class="visually-hidden">股票名称或代码</label>
+    <input id="stock-query" maxlength="40" autocomplete="off" placeholder="搜索股票名称或代码" required>
+    <button type="submit">搜索</button>
+    <div class="search-popover"><p id="search-status" role="status"></p><div class="search-results" id="results-list"></div></div>
+  </form>
+  <span class="local"><span aria-hidden="true"></span>本地研究</span>
+</header>
+<main class="terminal" data-page="market">
+  <aside id="watch-page" class="watch panel" aria-labelledby="watch-title">
+    <div class="watch-head"><h2 id="watch-title">自选股</h2><span>沪深 A 股</span></div>
+    <div class="watch-labels"><span>名称 / 代码</span><span>最新 / 涨跌幅</span></div>
+    <div class="watchlist">
+      <button type="button" class="watch-row" data-stock="sh603893" aria-pressed="true">
+        <span class="ticker"><b>瑞芯微</b><small>603893 · 沪市</small></span>
+        <span class="watch-quote"><b data-last>—</b><small data-move>—</small></span>
+      </button>
+      <button type="button" class="watch-row" data-stock="sz002475" aria-pressed="false">
+        <span class="ticker"><b>立讯精密</b><small>002475 · 深市</small></span>
+        <span class="watch-quote"><b data-last>—</b><small data-move>—</small></span>
+      </button>
+      <button type="button" class="watch-row" data-stock="sz002009" aria-pressed="false">
+        <span class="ticker"><b>天奇股份</b><small>002009 · 深市</small></span>
+        <span class="watch-quote"><b data-last>—</b><small data-move>—</small></span>
+      </button>
+    </div>
+  </aside>
+  <section id="market-page" class="market-column" aria-labelledby="stock-name">
+    <section class="market panel">
+      <div class="quote-header">
+        <div>
+          <div class="security"><h1 id="stock-name">瑞芯微</h1><span id="stock-code" class="code">SH603893</span></div>
+          <div class="quote-line"><strong id="price">—</strong><span id="change"></span></div>
+        </div>
+        <dl class="quote-metrics">
+          <div><dt>今开</dt><dd id="quote-open">—</dd></div>
+          <div><dt>最高</dt><dd id="quote-high">—</dd></div>
+          <div><dt>最低</dt><dd id="quote-low">—</dd></div>
+          <div><dt>昨收</dt><dd id="quote-prev">—</dd></div>
+          <div><dt>成交量</dt><dd id="quote-volume">—</dd></div>
+          <div><dt title="最新成交量／前 20 个交易日平均成交量">20 日量比</dt><dd id="quote-ratio">—</dd></div>
+        </dl>
       </div>
-      <div class="quote-line"><h2 id="stock-name">瑞芯微</h2><span id="stock-code" class="engine">SH603893</span><strong id="price">—</strong><span id="change"></span></div>
-      <p id="chart-status" role="status">正在读取行情</p>
-      <div class="stock-controls"><label for="range">日 K · 未复权</label><select id="range"><option value="30">30 日</option><option value="60" selected>60 日</option><option value="120">120 日</option></select></div>
-      <canvas id="candles" role="img" aria-label="未复权日 K 线与成交量，涨红跌绿"></canvas>
-      <p id="candle-info"></p>
-      <p>红涨绿跌 · 圆点标记收盘价变化达到 ±3% 的交易日</p>
-      <div class="stock-controls"><label for="day">交易日</label><select id="day"></select><button type="button" id="explain" disabled>分析波动</button></div>
+      <div class="chart-toolbar">
+        <div class="chart-kind" role="group" aria-label="行情类型">
+          <button type="button" data-chart-mode="daily" aria-pressed="true">日 K</button>
+          <button type="button" data-chart-mode="intraday" aria-pressed="false" disabled>分时</button>
+          <small id="quote-adjustment">未复权</small>
+        </div>
+        <div id="periods" class="periods" role="group" aria-label="图表显示范围">
+          <button type="button" data-range="30" aria-pressed="false">30 日</button>
+          <button type="button" data-range="60" aria-pressed="true">60 日</button>
+          <button type="button" data-range="120" aria-pressed="false">120 日</button>
+        </div>
+      </div>
+      <div id="daily-chart-pane">
+      <div class="chart-head"><p id="candle-info"></p><div class="ma-legend" aria-label="移动平均线"><span>MA5 <b id="ma5">—</b></span><span>MA10 <b id="ma10">—</b></span><span>MA20 <b id="ma20">—</b></span></div></div>
+      <canvas id="candles" role="img" aria-label="未复权日 K 线、移动平均线与成交量，涨红跌绿"></canvas>
+      <div class="chart-footer"><p id="chart-status" role="status">正在读取行情</p><span title="收盘价相对前一日涨跌达到 3%">● 波动标记 ≥ 3%</span></div>
+      <div class="chart-actions"><label for="day">分析交易日</label><select id="day"></select><button type="button" id="explain" disabled>分析波动</button></div>
+      </div>
+      <div id="minute-chart-pane" hidden>
+        <div class="chart-head"><p id="minute-info"></p></div>
+        <canvas id="minute-chart" role="img" aria-label="分时价格与成交量"></canvas>
+        <div class="chart-footer"><p id="minute-status" role="status"></p></div>
+      </div>
     </section>
-    <details class="card"><summary>数据审计与基准实验</summary>
-    <p id="cutoff">正在读取本地报告</p>
-    <div class="stats" id="stats"></div>
-    <section class="card"><div class="card-heading"><h2>基准实验</h2><button id="refresh" class="secondary" type="button">刷新报告</button></div>
-      <p id="experiment-status">正在读取</p>
-      <div class="table-scroll"><table><thead><tr><th scope="col">周期</th><th scope="col">样本数</th><th scope="col">行情 Brier</th><th scope="col">加入事件</th></tr></thead><tbody id="results"></tbody></table></div>
-    </section>
-    <section class="card"><h2>行情审计</h2><p id="audit-status">正在读取</p><div class="table-scroll"><table><thead><tr><th scope="col">证券</th><th scope="col">日线</th><th scope="col">缺日</th><th scope="col">跨源差异</th></tr></thead><tbody id="symbols"></tbody></table></div></section>
+    <details class="panel diagnostics"><summary>数据审计与基准实验</summary>
+      <p id="cutoff">正在读取本地报告</p>
+      <div class="stats" id="stats"></div>
+      <section class="audit-block"><div class="card-heading"><h2>基准实验</h2><button id="refresh" class="secondary" type="button">刷新报告</button></div>
+        <p id="experiment-status">正在读取</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">周期</th><th scope="col">样本数</th><th scope="col">行情 Brier</th><th scope="col">加入事件</th></tr></thead><tbody id="results"></tbody></table></div>
+      </section>
+      <section class="audit-block"><h2>行情审计</h2><p id="audit-status">正在读取</p><div class="table-scroll"><table><thead><tr><th scope="col">证券</th><th scope="col">日线</th><th scope="col">缺日</th><th scope="col">跨源差异</th></tr></thead><tbody id="symbols"></tbody></table></div></section>
     </details>
   </section>
-  <section class="chat card" aria-labelledby="chat-title">
-    <div class="card-heading"><h2 id="chat-title">研究助手</h2><span class="engine">Codex</span></div>
-    <div id="evidence" aria-live="polite">点击 K 线或选择交易日，查看当日证据。</div>
-    <div class="messages" id="messages" role="log" aria-label="对话记录"></div>
-    <div class="suggestions"><button class="secondary" type="button" data-prompt="读取最近一次实验，比较 5 日与 20 日模型的表现。">解读基准实验</button><button class="secondary" type="button" data-prompt="读取数据审计，说明公告覆盖和行情质量。">检查数据覆盖</button></div>
-    <form id="chat-form"><label for="message">给研究助手发消息</label><div class="composer"><textarea id="message" required maxlength="8000" rows="2" placeholder="问一个研究问题，或要求运行实验"></textarea><button id="send">发送</button></div><p id="status" role="status"></p></form>
+  <section id="research-page" class="chat panel" aria-labelledby="chat-title">
+    <div class="research-head"><h2 id="chat-title">研究助手</h2><span class="engine">Codex</span></div>
+    <nav class="research-tabs" aria-label="研究助手视图">
+      <button id="evidence-tab" type="button" aria-pressed="true" aria-controls="evidence">波动分析</button>
+      <button id="chat-tab" type="button" aria-pressed="false" aria-controls="messages">对话记录</button>
+    </nav>
+    <div id="evidence" aria-live="polite"><div class="empty-analysis"><span aria-hidden="true"></span><strong>选中一根 K 线</strong><p>查看当日行业对照、公告与资讯。</p></div></div>
+    <div class="messages" id="messages" role="log" aria-label="对话记录" hidden></div>
+    <div class="chat-bottom">
+      <form id="chat-form">
+        <label for="message" class="visually-hidden">给研究助手发消息</label>
+        <div class="composer"><textarea id="message" required maxlength="8000" rows="2" placeholder="输入研究问题…"></textarea><button id="send">发送</button></div>
+        <p id="status" role="status"></p>
+      </form>
+    </div>
   </section>
 </main>
+<nav class="phone-nav" aria-label="App 底部导航">
+  <button type="button" data-page-target="watch" aria-controls="watch-page"><span class="nav-icon nav-watch" aria-hidden="true"></span>自选</button>
+  <button type="button" data-page-target="market" aria-controls="market-page" aria-current="page"><span class="nav-icon nav-market" aria-hidden="true"></span>行情</button>
+  <button type="button" data-page-target="research" aria-controls="research-page"><span class="nav-icon nav-research" aria-hidden="true"></span>研究</button>
+</nav>
 </body>
 </html>

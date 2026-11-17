@@ -122,7 +122,7 @@ export async function stockIndustry(stock,date) {
   const {name,code,classification}=sector;
   const profileUrl='https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code='+stock.symbol.toUpperCase();
   const url='https://push2his.eastmoney.com/api/qt/stock/kline/get?'+new URLSearchParams({
-    secid:'90.'+code,klt:'101',fqt:'0',lmt:'10',end:date.replaceAll('-',''),fields1:'f1,f2',fields2:'f51,f53'
+    secid:'90.'+code,klt:'101',fqt:'0',lmt:'25',end:date.replaceAll('-',''),fields1:'f1,f2',fields2:'f51,f53'
   });
   const result=await eastmoney(url);
   if(result?.code!==code || !Array.isArray(result.klines)) return null;
@@ -133,6 +133,7 @@ export async function stockIndustry(stock,date) {
   if(!(close>0&&previousClose>0)) return null;
   return {name,code,date,close,previousClose,returnPct:(close/previousClose-1)*100,
     fiveDayReturnPct: at>=5 && Number(rows[at-5][1])>0 ? (close/Number(rows[at-5][1])-1)*100 : null,
+    twentyDayReturnPct: at>=20 && Number(rows[at-20][1])>0 ? (close/Number(rows[at-20][1])-1)*100 : null,
     classification:'东方财富公司分类：'+classification+'。使用对应板块作历史对照，未核实当日归属。', url, profileUrl};
 }
 
@@ -166,7 +167,7 @@ export function readEvidenceWindow(evidence) {
   if(windows.size>=24) windows.delete(windows.keys().next().value);
   const result=(async()=>{
     const date=evidence.row.date;
-    const start=new Date(Date.parse(date+'T00:00:00Z')-7*86400_000).toISOString().slice(0,10);
+    const start=new Date(Date.parse(date+'T00:00:00Z')-30*86400_000).toISOString().slice(0,10);
     const [news,sector]=await Promise.allSettled([stockNews(evidence.stock,start,date),stockIndustry(evidence.stock,date)]);
     const newsIndex=news.status==='fulfilled'?news.value:null;
     const entries=[

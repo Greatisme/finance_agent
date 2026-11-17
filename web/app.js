@@ -3,6 +3,30 @@ const messages = element('messages');
 const status = element('status');
 const send = element('send');
 const input = element('message');
+const terminal = document.querySelector('.terminal');
+const pageButtons = [...document.querySelectorAll('[data-page-target]')];
+function showPage(page) {
+  if (terminal.dataset.page === page) return;
+  terminal.dataset.page = page;
+  for (const button of pageButtons) {
+    if (button.dataset.pageTarget === page) button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  }
+  if (matchMedia('(max-width: 700px)').matches) window.scrollTo(0,0);
+}
+pageButtons.forEach(button=>button.addEventListener('click',()=>showPage(button.dataset.pageTarget)));
+document.addEventListener('finance:show-market',()=>showPage('market'));
+function showPanel(view) {
+  const chat = view === 'chat';
+  element('messages').hidden = !chat;
+  element('evidence').hidden = chat;
+  element('chat-tab').setAttribute('aria-pressed', String(chat));
+  element('evidence-tab').setAttribute('aria-pressed', String(!chat));
+  if (chat) messages.scrollTop = messages.scrollHeight;
+}
+element('chat-tab').addEventListener('click', () => showPanel('chat'));
+element('evidence-tab').addEventListener('click', () => showPanel('evidence'));
+document.addEventListener('finance:show-evidence', () => { showPage('research'); showPanel('evidence'); });
 
 async function get(url) {
   const response = await fetch(url);
@@ -78,6 +102,7 @@ async function sendMessage(message, analysis) {
     return;
   }
   send.disabled = true;
+  showPanel(analysis ? 'evidence' : 'chat');
   if (!analysis) input.value = '';
   bubble('user', message);
   const answer = bubble('assistant', '');

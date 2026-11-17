@@ -67,6 +67,7 @@ function statsAt(rows,index) {
   const meanVolume = volumes.length === 20 ? volumes.reduce((sum,item)=>sum+item.volume,0)/20 : 0;
   return {...row, returnPct: prior ? (row.close/prior.close-1)*100 : null,
     fiveDayReturnPct: index>=5 ? (row.close/rows[index-5].close-1)*100 : null,
+    twentyDayReturnPct: index>=20 ? (row.close/rows[index-20].close-1)*100 : null,
     previousClose: prior?.close ?? null, volumeMultiple: meanVolume > 0 ? row.volume/meanVolume : null};
 }
 
@@ -86,7 +87,7 @@ function dateOffset(date, days) {
 }
 
 async function disclosureWindow(stock, date) {
-  const start = dateOffset(date,-7);
+  const start = dateOffset(date,-30);
   const url = cninfo+'/new/hisAnnouncement/query';
   const body = new URLSearchParams({pageNum:'1',pageSize:'30',tabName:'fulltext',column:stock.market,
     stock:stock.code+','+stock.orgId,seDate:start+'~'+date});
@@ -113,7 +114,8 @@ export async function stockEvidence(symbol,date) {
     const [index, disclosures] = await Promise.allSettled([bars('sh000300'),disclosureWindow(stock,date)]);
     const marketIndex = index.status==='fulfilled' ? index.value.rows.findIndex(item=>item.date===date) : -1;
     const benchmark = marketIndex>0 ? {
-      returnPct:statsAt(index.value.rows,marketIndex).returnPct, fiveDayReturnPct:statsAt(index.value.rows,marketIndex).fiveDayReturnPct, url:index.value.url
+      returnPct:statsAt(index.value.rows,marketIndex).returnPct, fiveDayReturnPct:statsAt(index.value.rows,marketIndex).fiveDayReturnPct,
+      twentyDayReturnPct:statsAt(index.value.rows,marketIndex).twentyDayReturnPct, url:index.value.url
     } : null;
     return {stock:chart.stock,row,source:chart.source,benchmark,
       disclosures:disclosures.status==='fulfilled' ? disclosures.value : null};

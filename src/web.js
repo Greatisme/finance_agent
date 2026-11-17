@@ -3,6 +3,7 @@ import { readFile, writeFile, rename } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { openAssistant, savedThread, saveThread } from './assistant-runtime.js';
 import { callFinanceTool } from './assistant-tools.js';
+import { intradaySnapshot, startIntraday } from './intraday.js';
 import { searchStocks, stockChart, stockEvidence } from './market.js';
 import { analyzedStocks, readEvidenceWindow } from './market-sources.js';
 import { analysisSchema, makeAnalysisPrompt, assembleAnalysis, analysisText } from './market-analysis.js';
@@ -14,6 +15,7 @@ const historyFile = 'data/assistant/web-history.json';
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/intraday.js', ['intraday.js', 'text/javascript; charset=utf-8']],
   ['/market.js', ['market.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']]
 ]);
@@ -111,6 +113,10 @@ createServer(async (request, response) => {
   try {
     if (request.method === 'POST' && url.pathname === '/api/chat') return await chat(request, response);
     if (request.method === 'GET') {
+      if (url.pathname === '/api/intraday') {
+        const data=intradaySnapshot(url.searchParams.get('symbol') ?? '');
+        return json(response,data?200:404,data??{error:'本股不在分时采集范围内。'});
+      }
       if (url.pathname === '/api/stocks') return json(response, 200, await searchStocks(url.searchParams.get('q') ?? ''));
       if (url.pathname === '/api/chart' || url.pathname === '/api/evidence') {
         const symbol = url.searchParams.get('symbol') ?? '';
@@ -138,4 +144,4 @@ createServer(async (request, response) => {
     if (!response.headersSent) json(response, 500, { error: '本地工作台无法读取请求的数据。' });
     else response.end();
   }
-}).listen(port, host, () => console.log('Finance Agent: ' + origin));
+}).listen(port, host, () => { console.log('Finance Agent: ' + origin); startIntraday(); });
