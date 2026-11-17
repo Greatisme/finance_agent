@@ -10,6 +10,7 @@
     "experiment": "node src/cli.js experiment",
     "research": "node src/cli.js all",
     "test": "node --test",
-    "assistant": "node src/assistant.js"
+    "assistant": "node src/assistant.js",
+    "start": "node src/web.js"
   }
 }

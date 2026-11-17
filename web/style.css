@@ -1,0 +1,33 @@
+* { box-sizing: border-box; }
+:root { font-family: Inter, "Microsoft YaHei", system-ui, sans-serif; color: #eaf1f6; background: #0d1520; color-scheme: dark; }
+body { margin: 0; }
+header { height: 66px; border-bottom: 1px solid #283748; padding: 0 clamp(18px, 5vw, 70px); display: flex; align-items: center; justify-content: space-between; }
+.brand { font: bold 16px "IBM Plex Mono", monospace; letter-spacing: .09em; } .brand span, .eyebrow { color: #6ee7cb; }
+.local, .engine { color: #9db2c5; font-size: 13px; }
+main { max-width: 1440px; margin: auto; padding: 36px clamp(16px, 4vw, 58px); display: grid; grid-template-columns: 1.15fr 1fr; gap: 24px; align-items: start; }
+.research { min-width: 0; display: grid; gap: 16px; }
+h1 { font-size: clamp(28px, 4vw, 42px); margin: 6px 0 10px; letter-spacing: -.04em; }
+h2 { font-size: 17px; margin: 0; } p { margin: 8px 0; color: #aabed0; line-height: 1.5; }
+.eyebrow { font-size: 13px; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat, .card { border: 1px solid #283748; background: #141f2c; border-radius: 12px; }
+.stat { padding: 15px; color: #aabed0; font-size: 12px; } .stat strong { display: block; font: bold 23px "IBM Plex Mono", monospace; color: #eaf1f6; margin-top: 8px; }
+.card { padding: 18px; min-width: 0; }
+.card-heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.table-scroll { overflow: auto; } table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th, td { padding: 11px 8px; text-align: left; border-bottom: 1px solid #283748; font-size: 13px; }
+th { color: #aabed0; font-weight: 500; } tbody tr:last-child td { border-bottom: 0; }
+.chat { min-height: 610px; display: flex; flex-direction: column; gap: 14px; }
+.messages { min-height: 290px; height: min(49vh, 460px); overflow: auto; padding: 10px 2px; display: flex; flex-direction: column; gap: 10px; }
+.bubble { padding: 11px 13px; white-space: pre-wrap; overflow-wrap: anywhere; background: #1c2a3a; border-radius: 10px; line-height: 1.65; margin: 0; color: #eaf1f6; }
+.bubble.user { background: #193e3b; align-self: flex-end; max-width: 90%; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+button, textarea { font: inherit; border-radius: 8px; }
+button { border: 1px solid transparent; cursor: pointer; padding: 8px 12px; background: #6ee7cb; color: #10231f; font-weight: 650; }
+.secondary { background: #1c2a3a; color: #d3e2ef; border-color: #34465b; font-size: 12px; }
+button:disabled { opacity: .6; cursor: default; }
+label { display: block; color: #aabed0; font-size: 12px; margin-bottom: 6px; }
+.composer { display: flex; gap: 8px; align-items: stretch; }
+textarea { min-width: 0; width: 100%; resize: vertical; padding: 10px; border: 1px solid #34465b; background: #0d1520; color: #eaf1f6; }
+#status { min-height: 20px; font-size: 12px; margin-bottom: 0; }
+@media(max-width: 850px) { main { grid-template-columns: 1fr; padding-top: 22px; } .chat { min-height: auto; } }

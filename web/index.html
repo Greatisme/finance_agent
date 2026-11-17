@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finance Agent · A 股研究工作台</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<header><div class="brand">FINANCE <span>AGENT</span></div><span class="local">本地工作台</span></header>
+<main>
+  <section class="research" aria-labelledby="research-title">
+    <div class="intro"><p class="eyebrow">A 股研究</p><h1 id="research-title">数据与实验</h1><p id="cutoff">正在读取本地报告</p></div>
+    <div class="stats" id="stats"></div>
+    <section class="card"><div class="card-heading"><h2>基准实验</h2><button id="refresh" class="secondary" type="button">刷新报告</button></div>
+      <p id="experiment-status">正在读取</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">周期</th><th scope="col">样本数</th><th scope="col">行情 Brier</th><th scope="col">加入事件</th></tr></thead><tbody id="results"></tbody></table></div>
+    </section>
+    <section class="card"><h2>行情审计</h2><p id="audit-status">正在读取</p><div class="table-scroll"><table><thead><tr><th scope="col">证券</th><th scope="col">日线</th><th scope="col">缺日</th><th scope="col">跨源差异</th></tr></thead><tbody id="symbols"></tbody></table></div></section>
+  </section>
+  <section class="chat card" aria-labelledby="chat-title">
+    <div class="card-heading"><h2 id="chat-title">研究助手</h2><span class="engine">Codex</span></div>
+    <div class="messages" id="messages" role="log" aria-label="对话记录"></div>
+    <div class="suggestions"><button class="secondary" type="button" data-prompt="读取最近一次实验，比较 5 日与 20 日模型的表现。">解读基准实验</button><button class="secondary" type="button" data-prompt="读取数据审计，说明公告覆盖和行情质量。">检查数据覆盖</button></div>
+    <form id="chat-form"><label for="message">给研究助手发消息</label><div class="composer"><textarea id="message" required maxlength="8000" rows="2" placeholder="问一个研究问题，或要求运行实验"></textarea><button id="send">发送</button></div><p id="status" role="status"></p></form>
+  </section>
+</main>
+</body>
+</html>

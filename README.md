@@ -83,3 +83,19 @@ npm run assistant
 再次运行 `npm run assistant` 会续接软件会话。运行 `node src/assistant.js --new` 会启用新会话，旧历史保留在本机。输入 `/exit` 退出。
 
 [OpenAI 官方 Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)
+
+## 本地网页工作台
+
+```powershell
+npm start
+```
+
+打开 [http://127.0.0.1:4317/](http://127.0.0.1:4317/) 查看数据审计和基准实验报告。首次使用研究助手前，在同一仓库目录运行 `node src/assistant.js --login` 并完成登录。前端由本机 Node.js 后端提供，页面和接口使用同一个地址。
+
+| 接口 | 用途 |
+|---|---|
+| `GET /api/research` | 读取研究配置、审计和实验摘要 |
+| `GET /api/history` | 读取当前会话最近 50 轮网页消息 |
+| `POST /api/chat` | 接收 JSON 消息 `{"message":"…"}`，以 NDJSON 返回助手回复、工具进度和完成状态 |
+
+网页和命令行共用软件自己的 Codex 会话。网页记录保存在 `data/assistant/web-history.json`。重新加载网页后显示当前 Codex 会话中的网页消息，命令行消息由 Codex 的本地会话历史保留。使用 `FINANCE_PORT` 可调整本机端口。
