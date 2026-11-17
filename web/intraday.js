@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const canvas = $('minute-chart'), ctx = canvas.getContext('2d');
-let stock, state, mode = 'daily', requestId = 0;
+let stock, state, mode = 'daily', activePeriod = 'day', requestId = 0;
 const button = document.querySelector('[data-chart-mode="intraday"]');
 const number = value => value.toFixed(2);
 function slot(time) {
@@ -89,7 +89,7 @@ function setMode(next) {
   $('periods').hidden=intraday;
   $('quote-adjustment').textContent=intraday?'分钟线':'未复权';
   document.querySelectorAll('[data-chart-mode]').forEach(item=>
-    item.setAttribute('aria-pressed',String(item.dataset.chartMode===mode)));
+    item.setAttribute('aria-pressed',String(intraday ? item.dataset.chartMode==='intraday' : item.dataset.period===activePeriod)));
   if(intraday){draw();void refresh();}
 }
 canvas.addEventListener('pointermove',event=>{
@@ -100,7 +100,10 @@ canvas.addEventListener('pointermove',event=>{
   describe(points.reduce((a,b)=>Math.abs(slot(b.time)-time)<Math.abs(slot(a.time)-time)?b:a));
 });
 canvas.addEventListener('pointerleave',()=>describe(state?.snapshot?.points.at(-1)));
-document.querySelectorAll('[data-chart-mode]').forEach(item=>item.addEventListener('click',()=>setMode(item.dataset.chartMode)));
+document.querySelectorAll('[data-chart-mode]').forEach(item=>item.addEventListener('click',()=>{
+  if(item.dataset.period) activePeriod=item.dataset.period;
+  setMode(item.dataset.chartMode);
+}));
 document.addEventListener('finance:stock',event=>{
   stock=event.detail.stock;
   requestId++;

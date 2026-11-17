@@ -1,11 +1,12 @@
-import { showsVolume, setIndicatorHistory, drawIndicators } from './indicators.js';
+import { setIndicatorHistory, drawIndicators, describeIndicators } from './indicators.js';
+import { chartPeriodRows } from './chart-periods.js';
 import { eventTrackHeight, layoutEventMarkers, loadEventMarkers, paintEventRange } from './events.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('candles');
 const ctx = canvas.getContext('2d');
 const emptyAnalysis = document.querySelector('.empty-analysis');
-const ui = { rows: [], visible: [], selected: '', range:60, reviewPinned:false, hover:-1, gap:0, left:0, averages:new Map(), chart:null, request:0, evidenceRequest:0 };
+const ui = { rows: [], visible: [], selected: '', period:'day', range:0, windowEnd:0, reviewPinned:false, hover:-1, gap:0, left:0, averages:new Map(), chart:null, request:0, evidenceRequest:0 };
 const red = '#c33551', green = '#098260', muted = '#54657b', line = '#e6ebf2';
 const movingAverages = [[5,'#b78336'],[10,'#7861cf'],[20,'#2d8ac0']];
 const pct = value => value === null || value === undefined ? '—' : (value > 0 ? '+' : '') + value.toFixed(2) + '%';
@@ -18,10 +19,11 @@ async function get(route, params) {
 }
 
 const chartRequests = new Map();
-function getChart(symbol) {
-  if (chartRequests.has(symbol)) return chartRequests.get(symbol);
-  const request=get('chart',{symbol}).finally(()=>chartRequests.delete(symbol));
-  chartRequests.set(symbol,request);
+function getChart(symbol, scope='full') {
+  const key=symbol+':'+scope;
+  if (chartRequests.has(key)) return chartRequests.get(key);
+  const request=get('chart',{symbol,scope}).finally(()=>chartRequests.delete(key));
+  chartRequests.set(key,request);
   return request;
 }
 
@@ -48,11 +50,13 @@ function setAverages(rows) {
 }
 
 function candleSummary(row) {
+  describeIndicators(row);
+  const date = row?.startDate ? row.startDate+' 至 '+row.date : row?.date;
   for(const [index,[period]] of movingAverages.entries()){
     const value=ui.averages.get(row?.date)?.[index];
     $('ma'+period).textContent=value==null?'—':price(value);
   }
-  $('candle-info').textContent = row ? `${row.date}  开 ${price(row.open)}  高 ${price(row.high)}  低 ${price(row.low)}  收 ${price(row.close)}  涨跌 ${pct(row.returnPct)}` : '';
+  $('candle-info').textContent = row ? `${date}  开 ${price(row.open)}  高 ${price(row.high)}  低 ${price(row.low)}  收 ${price(row.close)}  涨跌 ${pct(row.returnPct)}` : '';
 }
 
 function draw() {
@@ -64,49 +68,45 @@ function draw() {
   ctx.setTransform(ratio,0,0,ratio,0,0);
   const rows = ui.visible;
   if (!rows.length) return;
-  const volumeVisible=showsVolume();
-  const left=12, right=57, top=17+eventTrackHeight(rows), bottom=height-(volumeVisible?94:35), volumeBottom=height-24;
+  const left=12, right=57, top=17+eventTrackHeight(rows), bottom=height-31;
   const averages=rows.flatMap(row=>ui.averages.get(row.date)??[]).filter(value=>value!==null);
   const high=Math.max(...rows.map(row=>row.high),...averages);
   const low=Math.min(...rows.map(row=>row.low),...averages);
   const pad = Math.max((high-low)*.08, high*.001);
-  const maxVolume = Math.max(1,...rows.map(row=>row.volume));
+  const axisHigh=high+pad, axisLow=Math.max(0,low-pad);
   const gap = (width-left-right)/rows.length;
   ui.left=left;
   ui.gap=gap;
-  const y = value => top+(high+pad-value)/(high-low+2*pad)*(bottom-top);
+  const y = value => top+(axisHigh-value)/(axisHigh-axisLow)*(bottom-top);
   paintEventRange(ctx,rows,left,gap,top,bottom);
   layoutEventMarkers(rows,left,gap);
   ctx.font='11px system-ui';
   ctx.textBaseline='middle';
   for (let i=0;i<=4;i++) {
-    const value=high+pad-(high-low+2*pad)*i/4, yy=y(value);
+    const value=axisHigh-(axisHigh-axisLow)*i/4, yy=y(value);
     ctx.strokeStyle=line;
     ctx.beginPath(); ctx.moveTo(left,yy);ctx.lineTo(width-right,yy);ctx.stroke();
     ctx.fillStyle=muted;
     ctx.fillText(price(value),width-right+5,yy);
   }
-  const divider = bottom + 19;
-  if(volumeVisible){
-    ctx.strokeStyle=line;
-    ctx.beginPath(); ctx.moveTo(left,divider); ctx.lineTo(width-right,divider); ctx.stroke();
-    ctx.fillStyle=muted;
-    ctx.fillText('成交量',left,divider+10);
+  const sessionsPerColumn=Math.max(1,Math.ceil(1.7/gap));
+  const selectedIndex=rows.findIndex(row=>row.date===ui.selected);
+  if(selectedIndex>=0){
+    const x=left+(selectedIndex+.5)*gap;
+    ctx.fillStyle='#eaf1ff';
+    ctx.fillRect(x-Math.max(1,gap)/2,top,Math.max(1,gap),bottom-top);
   }
-  for (const [index, row] of rows.entries()) {
-    const x=left+(index+.5)*gap, bar=Math.max(1,Math.min(12,gap*.68));
-    const color=row.close>=row.open?red:green;
-    if(row.date===ui.selected) {
-      ctx.fillStyle='#eaf1ff';
-      ctx.fillRect(x-gap/2,top,gap,volumeBottom-top);
-    }
-    ctx.strokeStyle=color; ctx.fillStyle=color;
-    ctx.beginPath();ctx.moveTo(x,y(row.high));ctx.lineTo(x,y(row.low));ctx.stroke();
-    ctx.fillRect(x-bar/2,Math.min(y(row.open),y(row.close)),bar,Math.max(1.2,Math.abs(y(row.open)-y(row.close))));
-    const v=volumeVisible?row.volume/maxVolume*48:0;
-    ctx.globalAlpha=.55;ctx.fillRect(x-bar/2,volumeBottom-v,bar,v);ctx.globalAlpha=1;
-    if (Math.abs(row.returnPct ?? 0)>=3) {
-      ctx.beginPath();ctx.arc(x,Math.max(top+3,y(row.high)-6),2.1,0,2*Math.PI);ctx.fill();
+  for(let index=0;index<rows.length;index+=sessionsPerColumn){
+    const column=rows.slice(index,index+sessionsPerColumn);
+    const open=column[0].open, close=column.at(-1).close;
+    const upper=Math.max(...column.map(row=>row.high)), lower=Math.min(...column.map(row=>row.low));
+    const columnWidth=column.length*gap;
+    const x=left+index*gap+columnWidth/2, bar=Math.max(1,Math.min(12,columnWidth*.68));
+    ctx.strokeStyle=ctx.fillStyle=close>=open?red:green;
+    ctx.beginPath();ctx.moveTo(x,y(upper));ctx.lineTo(x,y(lower));ctx.stroke();
+    ctx.fillRect(x-bar/2,Math.min(y(open),y(close)),bar,Math.max(1.2,Math.abs(y(open)-y(close))));
+    if(sessionsPerColumn===1 && gap>=4 && Math.abs(column[0].returnPct??0)>=3){
+      ctx.beginPath();ctx.arc(x,Math.max(top+3,y(upper)-6),2.1,0,2*Math.PI);ctx.fill();
     }
   }
   for (const [series,[,color]] of movingAverages.entries()) {
@@ -126,36 +126,82 @@ function draw() {
   if(ui.hover>=0&&ui.hover<rows.length){
     const x=left+(ui.hover+.5)*gap;
     ctx.setLineDash([4,4]); ctx.strokeStyle='#8193aa';
-    ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,volumeBottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bottom); ctx.stroke();
     ctx.setLineDash([]);
   }
-  const ticks = width<440?3:5;
+  const spansYears=rows[0].date.slice(0,4)!==rows.at(-1).date.slice(0,4);
+  const ticks = Math.min(rows.length,width<440?3:5);
+  $('movement-legend').hidden=sessionsPerColumn!==1||gap<4;
   ctx.fillStyle=muted;
   for(let i=0;i<ticks;i++){
-    const index=Math.round((rows.length-1)*i/(ticks-1));
-    const label=rows[index].date.slice(5);
+    const index=ticks===1?0:Math.round((rows.length-1)*i/(ticks-1));
+    const label=spansYears?rows[index].date.slice(0,7):rows[index].date.slice(5);
     const x=Math.min(width-right-ctx.measureText(label).width, Math.max(left,left+(index+.5)*gap-13));
     ctx.fillText(label,x,height-11);
   }
 }
 
-function setRange() {
-  const count=ui.range;
+function updatePeriodHistory() {
+  ui.rows=chartPeriodRows(ui.chart.rows,ui.period);
+  setAverages(ui.rows);
+  setIndicatorHistory(ui.rows);
+}
+
+function setRange(end=ui.rows.length) {
+  if(!ui.rows.length)return;
+  const count=ui.range||ui.rows.length;
+  ui.windowEnd=Math.min(ui.rows.length,Math.max(count,end));
   ui.hover=-1;
-  ui.visible=ui.rows.slice(-count);
-  $('day').replaceChildren(...ui.visible.slice().reverse().filter(row=>row.previousClose!==null).map(row=>{
-    const option=document.createElement('option');
-    option.value=row.date;
-    option.textContent=row.date+'  '+pct(row.returnPct);
-    return option;
-  }));
-  if (ui.visible.some(row=>row.date===ui.selected)) $('day').value=ui.selected;
-  else ui.selected=$('day').value;
+  ui.visible=ui.rows.slice(Math.max(0,ui.windowEnd-count),ui.windowEnd);
+  if(!ui.visible.some(row=>row.date===ui.selected))ui.selected=ui.visible.at(-1).date;
+  const first=ui.visible[0], last=ui.visible.at(-1);
+  $('history-window').hidden=!ui.range;
+  $('history-range').textContent=(first.startDate??first.date)+' 至 '+last.date;
+  $('history-older').disabled=ui.windowEnd<=count;
+  $('history-newer').disabled=ui.windowEnd>=ui.rows.length;
+  $('history-latest').disabled=ui.windowEnd>=ui.rows.length;
+  for(const button of document.querySelectorAll('[data-range]')){
+    button.setAttribute('aria-pressed',String(Number(button.dataset.range)===ui.range));
+    if(button.dataset.range!=='0')button.textContent=button.dataset.range+(ui.period==='day'?' 日':' 根');
+  }
+  updateCandleSelection();
+  drawIndicators(ui.visible);
+}
+
+function updateCandleSelection() {
   const row=ui.visible.find(item=>item.date===ui.selected);
   candleSummary(row);
-  $('explain').disabled=!row || !ui.chart?.analysisEnabled;
+  $('explain').disabled=!row||!ui.chart?.analysisEnabled;
+  $('explain').textContent=ui.period==='day'?'分析波动':'分析期末日';
+  if(row) $('explain').setAttribute('aria-label',$('explain').textContent+' '+row.date);
   draw();
-  drawIndicators(ui.visible);
+  updateSelectedEvidence();
+}
+
+function selectCandle(row) {
+  if(!row)return;
+  if(ui.selected!==row.date)ui.evidenceRequest++;
+  ui.selected=row.date;
+  ui.reviewPinned=true;
+  updateCandleSelection();
+}
+
+function setRangeAroundSelection() {
+  const index=ui.rows.findIndex(row=>row.date===ui.selected);
+  const end=index<0?ui.rows.length:index+1+Math.floor(ui.range/2);
+  setRange(end);
+}
+
+function shiftWindow(amount) {
+  if(!ui.rows.length)return;
+  const end=ui.windowEnd;
+  if(!ui.range){
+    if(amount>=0)return;
+    const preferred={day:120,week:60,month:30}[ui.period];
+    ui.range=ui.rows.length>preferred?preferred:30;
+    amount=-Math.round(ui.range/2);
+  }
+  setRange(end+amount);
 }
 
 function link(label,url) {
@@ -370,10 +416,7 @@ function updateSelectedEvidence() {
         button.type='button';
         button.className='secondary';
         button.textContent=report.date+'  '+pct(report.row.returnPct);
-        button.addEventListener('click',()=>{
-          $('day').value=report.date;
-          $('day').dispatchEvent(new Event('change'));
-        });
+        button.addEventListener('click',()=>selectCandle(ui.visible.find(row=>row.date===report.date)));
         group.append(button);
       }
       box.append(group);
@@ -383,15 +426,17 @@ function updateSelectedEvidence() {
 
 async function analyze(date) {
   const row=ui.visible.find(item=>item.date===date);
-  if(!row || row.previousClose===null || !ui.chart?.analysisEnabled) return;
-  ui.selected=date;
-  $('day').value=date;
+  if(!row || !ui.chart?.analysisEnabled) return;
   candleSummary(row);
   draw();
   const symbol=ui.chart.stock.symbol, name=ui.chart.stock.name;
   const request=++ui.evidenceRequest;
   document.dispatchEvent(new Event('finance:show-evidence'));
-  $('evidence').textContent='正在查找该日的行情和公告…';
+  const evidenceBox=$('evidence');
+  const reviewSection=evidenceBox.closest('details');
+  if(reviewSection)reviewSection.open=true;
+  evidenceBox.textContent='正在查找该日的行情和公告…';
+  evidenceBox.scrollIntoView({block:'nearest'});
   try {
     const evidence=await get('evidence',{symbol,date});
     if(request!==ui.evidenceRequest) return;
@@ -408,7 +453,7 @@ async function loadStock(symbol, openMarket = true) {
   const request=++ui.request;
   ui.evidenceRequest++;
   $('chart-status').textContent='正在加载真实日线…';
-  $('evidence').textContent='点击 K 线或选择交易日，查看当日证据。';
+  $('evidence').textContent='点击 K 线查看所选交易日的证据。';
   try {
     const chart=await getChart(symbol);
     if(request!==ui.request) return;
@@ -416,10 +461,9 @@ async function loadStock(symbol, openMarket = true) {
     void loadEventMarkers(symbol,chart.analysisEnabled);
     document.dispatchEvent(new CustomEvent('finance:stock',{detail:chart}));
     if (openMarket) document.dispatchEvent(new Event('finance:show-market'));
-    ui.rows=chart.rows;
+    ui.range=0;
     ui.reviewPinned=false;
-    setAverages(chart.rows);
-    setIndicatorHistory(chart.rows);
+    updatePeriodHistory();
     updateWatch(chart);
     document.querySelectorAll('[data-stock]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.stock===symbol)));
     ui.selected=chart.rows.at(-1).date;
@@ -434,13 +478,13 @@ async function loadStock(symbol, openMarket = true) {
     $('quote-high').textContent=price(last.high);
     $('quote-low').textContent=price(last.low);
     $('quote-prev').textContent=last.previousClose==null?'—':price(last.previousClose);
-    $('quote-volume').textContent=new Intl.NumberFormat('zh-CN',{notation:'compact',maximumFractionDigits:1}).format(last.volume)+' 手';
-    $('quote-ratio').textContent=last.volumeMultiple==null?'—':price(last.volumeMultiple)+' 倍';
-    $('chart-status').textContent=`行情至 ${last.date} · 腾讯日线`;
+    const coverage=chart.coverage;
+    $('chart-status').textContent=coverage?.fromListing
+      ? '上市 '+coverage.listingDate+' 至 '+last.date
+      : '可用日线 '+chart.rows[0].date+' 至 '+last.date+(coverage?.listingDate?' · 上市 '+coverage.listingDate:' · 上市首日待核实');
     $('chart-status').title='最新日线可能仍在盘中';
     $('results-list').replaceChildren();
     setRange();
-    updateSelectedEvidence();
   } catch(error) {
     if(request===ui.request) $('chart-status').textContent=error.message;
   }
@@ -472,36 +516,68 @@ $('stock-form').addEventListener('submit',async event=>{
   } catch(error){if(request===searchRequest) $('search-status').textContent=error.message;}
 });
 
+let gesture, clickBlockedUntil=0;
+function barIndex(event) {
+  return Math.floor((event.clientX-canvas.getBoundingClientRect().left-ui.left)/ui.gap);
+}
+canvas.addEventListener('pointerdown',event=>{
+  if(!event.isPrimary||event.button!==0)return;
+  gesture={id:event.pointerId,x:event.clientX,y:event.clientY};
+  canvas.setPointerCapture(event.pointerId);
+});
+canvas.addEventListener('pointercancel',()=>{gesture=null;});
+canvas.addEventListener('pointerup',event=>{
+  if(gesture?.id!==event.pointerId)return;
+  const dx=event.clientX-gesture.x, dy=event.clientY-gesture.y;
+  gesture=null;
+  if(Math.abs(dx)<18||Math.abs(dx)<=Math.abs(dy)*1.25)return;
+  clickBlockedUntil=performance.now()+350;
+  const amount=Math.max(1,Math.round(Math.abs(dx)/Math.max(1,canvas.clientWidth)*ui.visible.length));
+  shiftWindow(Math.sign(dx)*amount);
+});
 canvas.addEventListener('click',event=>{
-  const x=event.clientX-canvas.getBoundingClientRect().left;
-  const row=ui.visible[Math.floor((x-ui.left)/ui.gap)];
-  if(row?.previousClose!=null){
-    $('day').value=row.date;
-    $('day').dispatchEvent(new Event('change'));
-    $('explain').focus({preventScroll:true});
-  }
+  if(performance.now()<clickBlockedUntil)return;
+  selectCandle(ui.visible[barIndex(event)]);
+});
+canvas.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||!ui.visible.length)return;
+  event.preventDefault();
+  const index=ui.visible.findIndex(row=>row.date===ui.selected);
+  const target={ArrowLeft:index-1,ArrowRight:index+1,Home:0,End:ui.visible.length-1}[event.key];
+  selectCandle(ui.visible[Math.min(ui.visible.length-1,Math.max(0,target))]);
 });
 canvas.addEventListener('pointermove',event=>{
-  const x=event.clientX-canvas.getBoundingClientRect().left;
-  const row=ui.visible[Math.floor((x-ui.left)/ui.gap)];
-  if(row){
-    const index=ui.visible.indexOf(row);
-    if(ui.hover!==index){ui.hover=index;candleSummary(row);draw();}
-  }
+  if(gesture||event.pointerType==='touch')return;
+  const index=barIndex(event);
+  const row=ui.visible[index];
+  if(row&&ui.hover!==index){ui.hover=index;candleSummary(row);draw();}
 });
 canvas.addEventListener('pointerleave',()=>{
   ui.hover=-1;
   candleSummary(ui.visible.find(row=>row.date===ui.selected));
   draw();
 });
-document.querySelectorAll('[data-range]').forEach(button=>button.addEventListener('click',()=>{
-  ui.range=Number(button.dataset.range);
-  document.querySelectorAll('[data-range]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
-  setRange();
-  updateSelectedEvidence();
-}));
-$('day').addEventListener('change',()=>{ui.reviewPinned=true;ui.selected=$('day').value;candleSummary(ui.visible.find(row=>row.date===ui.selected));draw();updateSelectedEvidence();});
-$('explain').addEventListener('click',()=>void analyze($('day').value));
+for(const button of document.querySelectorAll('[data-period]')){
+  button.addEventListener('click',()=>{
+    if(ui.period===button.dataset.period)return;
+    const oldDate=ui.selected;
+    ui.period=button.dataset.period;
+    if(!ui.chart)return;
+    updatePeriodHistory();
+    ui.selected=ui.rows.find(row=>row.date>=oldDate)?.date??ui.rows.at(-1).date;
+    setRangeAroundSelection();
+  });
+}
+for(const button of document.querySelectorAll('[data-range]')){
+  button.addEventListener('click',()=>{
+    ui.range=Number(button.dataset.range);
+    setRangeAroundSelection();
+  });
+}
+$('history-older').addEventListener('click',()=>shiftWindow(-ui.range));
+$('history-newer').addEventListener('click',()=>shiftWindow(ui.range));
+$('history-latest').addEventListener('click',()=>{ui.selected=ui.rows.at(-1).date;setRange();});
+$('explain').addEventListener('click',()=>void analyze(ui.selected));
 new ResizeObserver(()=>{draw();drawIndicators(ui.visible);}).observe(canvas);
 document.addEventListener('finance:update-annotations',draw);
 document.addEventListener('finance:report',event=>{
@@ -513,5 +589,5 @@ document.querySelectorAll('[data-stock]').forEach(button=>button.addEventListene
 }));
 void loadStock('sh603893', false);
 document.querySelectorAll('[data-stock]').forEach(button=>{
-  if(button.dataset.stock!=='sh603893') void getChart(button.dataset.stock).then(updateWatch).catch(()=>{});
+  if(button.dataset.stock!=='sh603893') void getChart(button.dataset.stock,'recent').then(updateWatch).catch(()=>{});
 });

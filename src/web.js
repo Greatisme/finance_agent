@@ -21,6 +21,7 @@ const assets = new Map([
   ['/intraday.js', ['intraday.js', 'text/javascript; charset=utf-8']],
   ['/research-context.js', ['research-context.js', 'text/javascript; charset=utf-8']],
   ['/indicators.js', ['indicators.js', 'text/javascript; charset=utf-8']],
+  ['/chart-periods.js', ['chart-periods.js', 'text/javascript; charset=utf-8']],
   ['/events.js', ['events.js', 'text/javascript; charset=utf-8']],
   ['/market.js', ['market.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']]
@@ -46,6 +47,10 @@ async function archiveRows(symbol) {
 
 async function stockEvents(symbol) {
   return reviewedEvents([...(await history(await savedThread())),...(await archiveRows(symbol))],symbol);
+}
+
+function dayOffset(date, days) {
+  return new Date(Date.parse(date)+days*86400_000).toISOString().slice(0,10);
 }
 
 function json(response, status, value) {
@@ -81,7 +86,7 @@ async function chat(request, response) {
       const base = await stockEvidence(symbol, String(body.analysis.date ?? ''));
       if (!base) return json(response, 400, { error: '选中的交易日缺少可分析的行情。' });
       const [window, context] = await Promise.allSettled([
-        readEvidenceWindow(base), bars(symbol).then(prices=>researchContext(symbol,base.row.date,prices))
+        readEvidenceWindow(base), bars(symbol, {end:base.row.date}).then(prices=>researchContext(symbol,base.row.date,prices))
       ]);
       if(window.status==='rejected')throw window.reason;
       evidence = {...window.value,context:context.value??null};
@@ -167,7 +172,13 @@ createServer(async (request, response) => {
         const date=url.searchParams.get('date') ?? '';
         if (!analyzedStocks.has(symbol) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(response,400,{error:'证券或日期无效。'});
         const cutoff=closedThrough();
-        const [stock,market,industry]=await Promise.allSettled([bars(symbol),bars('sh000300'),industryHistory(symbol,cutoff,300)]);
+        if (!Number.isFinite(Date.parse(date))) return json(response,400,{error:'交易日无效。'});
+        const windowEnd=dayOffset(date,70);
+        const end=windowEnd<cutoff ? windowEnd : cutoff;
+        const range={start:dayOffset(date,-30),end};
+        const [stock,market,industry]=await Promise.allSettled([
+          bars(symbol,range),bars('sh000001',range),industryHistory(symbol,end,120)
+        ]);
         const performance=followThrough(date,market.value?.rows??[],stock.value?.rows??[],industry.value?.rows??[],cutoff);
         return json(response,200,{...performance,sector:industry.value?.name??null,
           sources:{stock:stock.value?.url??null,industry:industry.value?.url??null,calendar:market.value?.url??null},
@@ -177,7 +188,7 @@ createServer(async (request, response) => {
       if (url.pathname === '/api/chart' || url.pathname === '/api/evidence') {
         const symbol = url.searchParams.get('symbol') ?? '';
         const result = url.pathname === '/api/chart'
-          ? await stockChart(symbol)
+          ? await stockChart(symbol,{recentOnly:url.searchParams.get('scope')==='recent'})
           : await stockEvidence(symbol, url.searchParams.get('date') ?? '');
         if (url.pathname === '/api/chart' && result) result.analysisEnabled = analyzedStocks.has(symbol);
         return json(response, result ? 200 : 404, result ?? { error: '未找到该证券或交易日的有效数据。' });

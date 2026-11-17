@@ -1,4 +1,5 @@
 import { displayTrades } from './research-context.js';
+import { chartEventIndex, eventWindowSpan } from './chart-periods.js';
 
 const $ = id => document.getElementById(id);
 const layer = $('event-markers');
@@ -54,8 +55,7 @@ function visibleMarks(rows) {
   if(!active)return [];
   const result=[];
   for(const event of events){
-    if(event.date<rows[0]?.date || event.date>rows.at(-1)?.date)continue;
-    const index=rows.findIndex(row=>row.date>=event.date);
+    const index=chartEventIndex(rows,event.date);
     if(index>=0)result.push({event,index});
   }
   return result;
@@ -63,9 +63,9 @@ function visibleMarks(rows) {
 
 export function paintEventRange(ctx,rows,left,gap,top,bottom) {
   if(!performance?.start || !performance?.end || !selection)return;
-  const first=rows.findIndex(row=>row.date>=performance.start&&row.date<=performance.end);
-  if(first<0)return;
-  const count=rows.slice(first).filter(row=>row.date<=performance.end).length;
+  const span=eventWindowSpan(rows,performance.start,performance.end);
+  if(!span)return;
+  const {first,count}=span;
   ctx.fillStyle=selection.side==='多方'?'#c3355116':selection.side==='空方'?'#09826018':'#2976ad1e';
   ctx.fillRect(left+first*gap,top,count*gap,bottom-top);
 }
@@ -82,9 +82,10 @@ export function layoutEventMarkers(rows,left,gap) {
   if(key===marksKey)return;
   marksKey=key;
   layer.replaceChildren();
+  const mapping=rows[0]?.periodStart?'按自然周期标注':'非交易日靠后标注';
   $('event-legend').textContent=marks.length
-    ? '红「多」绿「空」蓝「榜」 · 点标记查看依据和后续表现 · 非交易日靠后标注'
-    : events.length ? '当前显示范围内无多空事件' : '暂无已核对原文的多空标记 · 选择日期发起分析';
+    ? '红「多」绿「空」蓝「榜」 · 点标记查看依据和后续表现 · '+mapping
+    : events.length ? '当前显示范围内无多空事件' : '暂无已核对原文的多空标记 · 点 K 线发起分析';
   for(const side of ['多方','空方','交易']){
     const groups=[];
     for(const mark of marks.filter(item=>item.event.side===side)){
@@ -122,7 +123,7 @@ function renderPerformance(target,data) {
     ? '基准为 '+data.baseline+' 收盘。披露日不计入，从其后首个已收盘交易日起算。个股按未复权价格计算。'
     : '缺少披露日附近的交易日历或基准收盘，无法计算后续表现。');
   target.append(title,note);
-  if (data.start) target.append(node('p','图中阴影是 '+data.start+' 至 '+data.end+' 的观察区间（已完成 '+data.completed+'／20 个交易日），仅展示事件发生后的走势。'));
+  if (data.start) target.append(node('p','观察区间为 '+data.start+' 至 '+data.end+'（已完成 '+data.completed+'／20 个交易日）。图中标色为与这段日期相交的 K 线。'));
   else target.append(node('p','暂无可绘制的后续观察区间。'));
   const wrap=node('div',null,'table-scroll');
   const table=document.createElement('table');

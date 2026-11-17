@@ -52,27 +52,37 @@
           <div><dt>最高</dt><dd id="quote-high">—</dd></div>
           <div><dt>最低</dt><dd id="quote-low">—</dd></div>
           <div><dt>昨收</dt><dd id="quote-prev">—</dd></div>
-          <div><dt>成交量</dt><dd id="quote-volume">—</dd></div>
-          <div><dt title="最新成交量／前 20 个交易日平均成交量">20 日量比</dt><dd id="quote-ratio">—</dd></div>
         </dl>
       </div>
       <div class="chart-toolbar">
         <div class="chart-kind" role="group" aria-label="行情类型">
-          <button type="button" data-chart-mode="daily" aria-pressed="true">日 K</button>
+          <button type="button" data-chart-mode="daily" data-period="day" aria-pressed="true">日 K</button>
+          <button type="button" data-chart-mode="daily" data-period="week" aria-pressed="false">周 K</button>
+          <button type="button" data-chart-mode="daily" data-period="month" aria-pressed="false">月 K</button>
           <button type="button" data-chart-mode="intraday" aria-pressed="false" disabled>分时</button>
           <small id="quote-adjustment">未复权</small>
         </div>
         <div id="periods" class="periods" role="group" aria-label="图表显示范围">
+          <button type="button" data-range="0" aria-pressed="true">全程</button>
           <button type="button" data-range="30" aria-pressed="false">30 日</button>
-          <button type="button" data-range="60" aria-pressed="true">60 日</button>
+          <button type="button" data-range="60" aria-pressed="false">60 日</button>
           <button type="button" data-range="120" aria-pressed="false">120 日</button>
           <button type="button" data-range="250" aria-pressed="false">250 日</button>
         </div>
       </div>
       <div id="daily-chart-pane">
+      <div class="history-window" id="history-window" hidden>
+        <span id="history-range" role="status"></span>
+        <div role="group" aria-label="浏览历史窗口">
+          <button type="button" class="secondary" id="history-older">更早</button>
+          <button type="button" class="secondary" id="history-newer">更晚</button>
+          <button type="button" class="secondary" id="history-latest">最新</button>
+        </div>
+      </div>
       <div class="chart-head"><p id="candle-info"></p><div class="ma-legend" aria-label="移动平均线"><span>MA5 <b id="ma5">—</b></span><span>MA10 <b id="ma10">—</b></span><span>MA20 <b id="ma20">—</b></span></div></div>
       <div class="event-chart"><div id="event-markers" aria-label="日 K 多空事件"></div>
-      <canvas id="candles" role="img" aria-label="未复权日 K 线与移动平均线，涨红跌绿"></canvas></div>
+      <canvas id="candles" role="img" tabindex="0" aria-label="未复权日 K 线与移动平均线，涨红跌绿" aria-describedby="chart-interaction"></canvas></div>
+      <p id="chart-interaction" class="visually-hidden">点击或用左右方向键选择 K 线。左划看更早的行情，右划看较新的行情。</p>
       <p id="event-legend" role="status"></p>
       <details class="indicator-options"><summary>技术指标</summary>
         <div>
@@ -81,10 +91,11 @@
           <label><input type="checkbox" data-indicator="rsi"> RSI</label>
         </div>
       </details>
+      <section id="indicator-volume" class="indicator-pane" hidden><p><strong>成交量</strong> <span></span></p><canvas role="img" aria-label="当前 K 线周期的成交量，单位为手"></canvas></section>
       <section id="indicator-macd" class="indicator-pane" hidden><p><strong>MACD (12, 26, 9)</strong> <span></span></p><canvas role="img" aria-label="MACD：DIF、DEA 与二倍差值柱"></canvas></section>
       <section id="indicator-rsi" class="indicator-pane" hidden><p><strong>RSI (14)</strong> <span></span></p><canvas role="img" aria-label="十四期 RSI 与 30、70 参考线"></canvas></section>
-      <div class="chart-footer"><p id="chart-status" role="status">正在读取行情</p><span title="收盘价相对前一日涨跌达到 3%">● 波动标记 ≥ 3%</span></div>
-      <div class="chart-actions"><label for="day">分析交易日</label><select id="day"></select><button type="button" id="explain" disabled>分析波动</button></div>
+      <div class="chart-footer"><p id="chart-status" role="status">正在读取行情</p><span id="movement-legend" title="收盘价相对上一根 K 线涨跌达到 3%">● 波动标记 ≥ 3%</span></div>
+      <div class="chart-actions"><button type="button" id="explain" disabled>分析波动</button></div>
       <section id="event-detail" aria-label="事件原文和后续表现" hidden></section>
       </div>
       <div id="minute-chart-pane" hidden>
