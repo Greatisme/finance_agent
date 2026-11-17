@@ -50,3 +50,23 @@ label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px
 textarea { min-width: 0; width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); }
 #status { min-height: 20px; font-size: 12px; margin-bottom: 0; }
 @media(max-width: 850px) { main { grid-template-columns: 1fr; padding-top: 22px; } .chat { min-height: auto; } }
+.stock-search,.stock-controls,.quote-line,.search-results { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.stock-search input { flex:1; min-width:140px; }
+.stock-search input,.stock-controls select { font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--control-line); padding:9px 10px; border-radius:8px; }
+.stock-search input:focus-visible,.stock-controls select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.search-results:empty,#search-status:empty { display:none; }
+.quote-line { margin:14px 0 4px; }
+.quote-line h2 { font-size:23px; }
+.quote-line strong { font-size:27px; font-variant-numeric:tabular-nums; }
+.up { color:#ad2f40; } .down { color:#126b58; }
+#candles { width:100%; height:clamp(260px,42vh,440px); display:block; cursor:crosshair; }
+#candle-info { min-height:1.5em; font: 12px/1.5 system-ui; font-variant-numeric:tabular-nums; }
+#evidence { border:1px solid var(--line); border-radius:8px; background:var(--subtle); padding:10px 12px; font-size:13px; max-height:230px; overflow:auto; }
+#evidence h3 { margin:0; font-size:14px; }
+#evidence ul { padding-left:18px; margin:8px 0 0; }
+#evidence li { margin-bottom:5px; }
+#evidence a { color:var(--accent); text-underline-offset:2px; }
+details > summary { cursor:pointer; margin-bottom:8px; color:var(--accent); }
+.stock-controls { margin-top:12px; }
+.stock-controls label { margin:0; }
+.stock-controls select { font-size:12px; }

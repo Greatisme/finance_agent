@@ -63,18 +63,28 @@ document.querySelectorAll('[data-prompt]').forEach(button => button.addEventList
   input.value = button.dataset.prompt;
   input.focus();
 }));
-element('chat-form').addEventListener('submit', async event => {
+element('chat-form').addEventListener('submit', event => {
   event.preventDefault();
-  const message = input.value.trim();
-  if (!message || send.disabled) return;
+  void sendMessage(input.value.trim());
+});
+document.addEventListener('finance:analysis', event => {
+  void sendMessage(event.detail.message, event.detail.analysis);
+});
+
+async function sendMessage(message, analysis) {
+  if (!message) return;
+  if (send.disabled) {
+    status.textContent = '助手正在处理上一条消息。完成后可再次点击分析。';
+    return;
+  }
   send.disabled = true;
-  input.value = '';
+  if (!analysis) input.value = '';
   bubble('user', message);
   const answer = bubble('assistant', '');
   status.textContent = '正在连接助手…';
   try {
     const response = await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, analysis })
     });
     if (!response.ok) throw new Error((await response.json()).error);
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -101,10 +111,10 @@ element('chat-form').addEventListener('submit', async event => {
     void refreshResearch();
   } catch (error) {
     if (!answer.textContent) answer.remove();
-    if (!input.value) input.value = message;
+    if (!analysis && !input.value) input.value = message;
     status.textContent = error.message;
   } finally { send.disabled = false; }
-});
+}
 
 send.disabled = true;
 void refreshResearch();
